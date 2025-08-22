@@ -9,7 +9,7 @@ interface Player {
   velocityY: number;
   onGround: boolean;
   rotation: number;
-  mode: 'normal' | 'rocket' | 'gravity' | 'mini';
+  mode: 'normal' | 'rocket' | 'gravity' | 'mini' | 'wave' | 'ball' | 'ufo';
   rocketFuel: number;
   doubleJumpAvailable: boolean;
 }
@@ -19,8 +19,15 @@ interface Obstacle {
   y: number;
   width: number;
   height: number;
-  type: 'spike' | 'block' | 'saw' | 'platform' | 'stairs' | 'ceiling_barrier' | 'floor_barrier';
+  type: 'spike' | 'block' | 'saw' | 'platform' | 'ceiling_barrier' | 'floor_barrier' | 'rotating_platform' | 'sliding_floor' | 'direction_changer';
   passed: boolean;
+  rotation?: number;
+  rotationSpeed?: number;
+  slideDirection?: 'left' | 'right';
+  slideSpeed?: number;
+  originalX?: number;
+  slideRange?: number;
+  changeDirection?: 'up' | 'down' | 'left' | 'right';
 }
 
 interface PowerUp {
@@ -40,6 +47,24 @@ interface Particle {
   size: number;
   color: string;
   life: number;
+  type?: 'jump' | 'rocket' | 'explosion' | 'theme_change';
+}
+
+interface Theme {
+  name: string;
+  backgroundColors: string[];
+  gridColor: string;
+  waveColor: string;
+  obstacleColors: {
+    spike: string;
+    block: string;
+    saw: string;
+  };
+  particleColors: {
+    jump: string;
+    rocket: string;
+    explosion: string;
+  };
 }
 
 interface GameState {
@@ -54,6 +79,17 @@ interface GameState {
   backgroundOffset: number;
   distance: number;
   rocketModeActive: boolean;
+  currentTheme: string;
+  speedBoostActive: boolean;
+  speedBoostEndTime: number;
+  lastSpeedChangeScore: number;
+  multiJumpCount: number;
+  maxMultiJumps: number;
+  dashAbilityActive: boolean;
+  dashCooldown: number;
+  shieldActive: boolean;
+  shieldEndTime: number;
+  lastAbilityUnlockScore: number;
 }
 
 const GAME_WIDTH = 800;
@@ -64,6 +100,127 @@ const JUMP_FORCE = 15;
 const GRAVITY = 0.8;
 const GAME_SPEED = 8;
 const OBSTACLE_SPAWN_RATE = 0.015;
+
+// Tema tanımları
+const THEMES: { [key: string]: Theme } = {
+  classic: {
+    name: 'Klasik Neon',
+    backgroundColors: ['#0a0a0a', '#1a1a2e', '#16213e'],
+    gridColor: 'rgba(0, 255, 255, 0.1)',
+    waveColor: '#00ffff',
+    obstacleColors: {
+      spike: '#ff0066',
+      block: '#ff3300',
+      saw: '#ff0000'
+    },
+    particleColors: {
+      jump: '#ffff00',
+      rocket: '#00aaff',
+      explosion: '#ff4444'
+    }
+  },
+  forest: {
+    name: 'Orman',
+    backgroundColors: ['#0d2818', '#1a4d2e', '#2d5a3d'],
+    gridColor: 'rgba(34, 139, 34, 0.2)',
+    waveColor: '#32cd32',
+    obstacleColors: {
+      spike: '#8b4513',
+      block: '#654321',
+      saw: '#a0522d'
+    },
+    particleColors: {
+      jump: '#90ee90',
+      rocket: '#228b22',
+      explosion: '#ff6347'
+    }
+  },
+  ocean: {
+    name: 'Okyanus',
+    backgroundColors: ['#001122', '#003366', '#004488'],
+    gridColor: 'rgba(0, 191, 255, 0.2)',
+    waveColor: '#00bfff',
+    obstacleColors: {
+      spike: '#4682b4',
+      block: '#1e90ff',
+      saw: '#0066cc'
+    },
+    particleColors: {
+      jump: '#87ceeb',
+      rocket: '#4169e1',
+      explosion: '#ff7f50'
+    }
+  },
+  volcano: {
+    name: 'Volkan',
+    backgroundColors: ['#2d0a0a', '#4d1a1a', '#662222'],
+    gridColor: 'rgba(255, 69, 0, 0.3)',
+    waveColor: '#ff4500',
+    obstacleColors: {
+      spike: '#dc143c',
+      block: '#b22222',
+      saw: '#8b0000'
+    },
+    particleColors: {
+      jump: '#ffa500',
+      rocket: '#ff6347',
+      explosion: '#ff0000'
+    }
+  },
+  galaxy: {
+    name: 'Galaksi',
+    backgroundColors: ['#0a0a2e', '#1a1a4d', '#2e2e66'],
+    gridColor: 'rgba(138, 43, 226, 0.2)',
+    waveColor: '#9370db',
+    obstacleColors: {
+      spike: '#8a2be2',
+      block: '#9932cc',
+      saw: '#ba55d3'
+    },
+    particleColors: {
+      jump: '#dda0dd',
+      rocket: '#9370db',
+      explosion: '#ff69b4'
+    }
+  }
+}
+
+// Advanced evolutionary transition system
+function checkEvolutionaryTransition(gameState: any, score: number) {
+  const player = gameState.player;
+  
+  // Wave mode at 800 points
+  if (score >= 800 && player.mode !== 'wave' && player.mode !== 'ball' && player.mode !== 'ufo') {
+    player.mode = 'wave';
+    player.velocityY = 0;
+    createRocketParticles(gameState, player.x, player.y);
+  }
+  
+  // Ball mode at 1200 points
+  if (score >= 1200 && player.mode !== 'ball' && player.mode !== 'ufo') {
+    player.mode = 'ball';
+    player.velocityY = 0;
+    player.rotation = 0;
+    createExplosionParticles(gameState, player.x, player.y);
+  }
+  
+  // UFO mode at 1600 points
+  if (score >= 1600 && player.mode !== 'ufo') {
+    player.mode = 'ufo';
+    player.velocityY = 0;
+    player.rocketFuel = 100;
+    createRocketParticles(gameState, player.x, player.y);
+  }
+};
+
+// Skor bazlı tema geçişleri
+const THEME_THRESHOLDS = {
+  classic: 0,
+  forest: 500,
+  ocean: 1500,
+  volcano: 3000,
+  galaxy: 5000
+};
 
 interface GeometryDashGameProps {
   playerAddress: string;
@@ -99,7 +256,18 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     gameSpeed: GAME_SPEED,
     backgroundOffset: 0,
     distance: 0,
-    rocketModeActive: false
+    rocketModeActive: false,
+    currentTheme: 'classic',
+    speedBoostActive: false,
+    speedBoostEndTime: 0,
+    lastSpeedChangeScore: 0,
+    multiJumpCount: 0,
+    maxMultiJumps: 1,
+    dashAbilityActive: false,
+    dashCooldown: 0,
+    shieldActive: false,
+    shieldEndTime: 0,
+    lastAbilityUnlockScore: 0
   });
 
   const gameLoop = useCallback(() => {
@@ -115,12 +283,24 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
     // Draw animated background
-    drawBackground(ctx, gameState.backgroundOffset);
+    drawBackground(ctx, gameState.backgroundOffset, gameState);
     gameState.backgroundOffset += gameState.gameSpeed * 0.5;
 
     // Update distance and check for mode changes
     gameState.distance += gameState.gameSpeed * 0.1;
     setDistance(Math.floor(gameState.distance));
+    
+    // Check for theme changes based on score
+    updateTheme(gameState, score);
+    
+    // Check for dynamic speed changes
+    checkDynamicSpeedChange(gameState, score);
+    
+    // Check for evolutionary transitions
+    checkEvolutionaryTransition(gameState, score);
+    
+    // Check for new movement abilities
+    checkNewMovementAbilities(gameState, score);
     
     // Player physics
     const player = gameState.player;
@@ -142,11 +322,12 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
           // First jump
           player.velocityY = -jumpForce;
           player.onGround = false;
+          gameState.multiJumpCount = 1;
           createJumpParticles(gameState, player.x, player.y + player.height);
-        } else if (player.doubleJumpAvailable && !player.onGround) {
-          // Double jump
+        } else if (gameState.multiJumpCount < gameState.maxMultiJumps && !player.onGround) {
+          // Multi jump
           player.velocityY = -jumpForce * 0.8;
-          player.doubleJumpAvailable = false;
+          gameState.multiJumpCount++;
           createJumpParticles(gameState, player.x, player.y + player.height);
         }
       }
@@ -162,6 +343,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         player.velocityY = 0;
         player.onGround = true;
         player.rotation = 0;
+        gameState.multiJumpCount = 0; // Reset multi jump count on ground
       } else {
         // Rotate player while in air
         player.rotation += 8;
@@ -252,6 +434,77 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       player.rotation += 2; // Slow rotation in rocket mode
     }
+    
+    // New evolutionary modes physics
+    if (player.mode === 'wave') {
+      // Wave mode - smooth sine wave movement
+      if (gameState.keys.space || gameState.keys.up) {
+        player.velocityY = -3; // Smooth upward movement
+      } else {
+        player.velocityY = 3; // Smooth downward movement
+      }
+      
+      player.y += player.velocityY;
+      
+      // Boundaries
+      if (player.y <= 50) player.y = 50;
+      const groundY = GAME_HEIGHT - GROUND_HEIGHT - player.height;
+      if (player.y >= groundY) player.y = groundY;
+      
+      player.rotation += 2; // Gentle rotation
+    } else if (player.mode === 'ball') {
+      // Ball mode - bouncing physics
+      if (gameState.keys.space || gameState.keys.up) {
+        if (player.onGround) {
+          player.velocityY = -JUMP_FORCE * 1.2; // Higher bounce
+          player.onGround = false;
+          createJumpParticles(gameState, player.x, player.y + player.height);
+        }
+      }
+      
+      // Apply gravity with bounce
+      player.velocityY += GRAVITY;
+      player.y += player.velocityY;
+      
+      // Ground collision with bounce
+      const groundY = GAME_HEIGHT - GROUND_HEIGHT - player.height;
+      if (player.y >= groundY) {
+        player.y = groundY;
+        player.velocityY = Math.abs(player.velocityY) * -0.7; // Bounce with energy loss
+        player.onGround = true;
+      }
+      
+      // Continuous rotation
+      player.rotation += 12;
+    } else if (player.mode === 'ufo') {
+      // UFO mode - hover with fuel system
+      if (gameState.keys.space || gameState.keys.up || gameState.keys.w) {
+        if (player.rocketFuel > 0) {
+          player.velocityY = -4; // Controlled hover
+          player.rocketFuel -= 3;
+          createRocketParticles(gameState, player.x, player.y + player.height);
+        }
+      } else {
+        player.velocityY += GRAVITY * 0.3; // Very light gravity
+      }
+      
+      player.y += player.velocityY;
+      
+      // Boundaries
+      if (player.y <= 50) {
+        player.y = 50;
+        player.velocityY = 0;
+      }
+      const groundY = GAME_HEIGHT - GROUND_HEIGHT - player.height;
+      if (player.y >= groundY) {
+        player.y = groundY;
+        player.velocityY = 0;
+        player.onGround = true;
+      }
+      
+      // Gentle oscillating rotation
+      player.rotation = Math.sin(Date.now() * 0.005) * 10;
+    }
 
     // Move camera with player
     gameState.camera.x += gameState.gameSpeed;
@@ -276,20 +529,78 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     // Update obstacles
     gameState.obstacles.forEach((obstacle, index) => {
       obstacle.x -= gameState.gameSpeed;
+      
+      // Update rotating platform rotation
+      if (obstacle.type === 'rotating_platform' && obstacle.rotation !== undefined && obstacle.rotationSpeed !== undefined) {
+        obstacle.rotation += obstacle.rotationSpeed;
+        if (obstacle.rotation >= 360) {
+          obstacle.rotation -= 360;
+        }
+      }
+      
+      // Update sliding floor movement
+      if (obstacle.type === 'sliding_floor' && obstacle.slideDirection && obstacle.slideSpeed && obstacle.originalX !== undefined && obstacle.slideRange !== undefined) {
+        if (obstacle.slideDirection === 'left') {
+          obstacle.x -= obstacle.slideSpeed;
+          if (obstacle.x <= obstacle.originalX - obstacle.slideRange) {
+            obstacle.slideDirection = 'right';
+          }
+        } else {
+          obstacle.x += obstacle.slideSpeed;
+          if (obstacle.x >= obstacle.originalX + obstacle.slideRange) {
+            obstacle.slideDirection = 'left';
+          }
+        }
+      }
 
       // Remove off-screen obstacles
       if (obstacle.x + obstacle.width < -100) {
         gameState.obstacles.splice(index, 1);
       }
 
+      // Check direction changer effect
+      if (obstacle.type === 'direction_changer' && !obstacle.passed) {
+        const collision = (
+          player.x < obstacle.x + obstacle.width &&
+          player.x + player.width > obstacle.x &&
+          player.y < obstacle.y + obstacle.height &&
+          player.y + player.height > obstacle.y
+        );
+        
+        if (collision) {
+          obstacle.passed = true; // Prevent multiple triggers
+          
+          // Apply direction change effect
+          if (obstacle.changeDirection === 'up') {
+            player.velocityY = -12; // Strong upward boost
+          } else if (obstacle.changeDirection === 'down') {
+            player.velocityY = 8; // Downward push
+          } else if (obstacle.changeDirection === 'left') {
+            gameState.gameSpeed *= 0.7; // Slow down temporarily
+            setTimeout(() => {
+              gameState.gameSpeed = Math.min(GAME_SPEED + Math.floor(gameState.camera.x / 1000) * 0.5, GAME_SPEED * 2);
+            }, 2000);
+          } else if (obstacle.changeDirection === 'right') {
+            gameState.gameSpeed *= 1.5; // Speed up temporarily
+            setTimeout(() => {
+              gameState.gameSpeed = Math.min(GAME_SPEED + Math.floor(gameState.camera.x / 1000) * 0.5, GAME_SPEED * 2);
+            }, 2000);
+          }
+          
+          // Create visual effect
+          createRocketParticles(gameState, obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2);
+        }
+      }
+      
       // Check collision
       if (checkCollision(player, obstacle)) {
-        if (obstacle.type === 'stairs') {
-          // Platform behavior for stairs - player lands on top
-          player.y = obstacle.y - player.height;
-          player.velocityY = 0;
-          player.onGround = true;
-          player.rotation = 0;
+        if (gameState.shieldActive) {
+          // Shield protects from collision
+          gameState.shieldActive = false;
+          gameState.shieldEndTime = 0;
+          createExplosionParticles(gameState, obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2);
+          // Remove the obstacle that hit the shield
+          gameState.obstacles.splice(index, 1);
         } else {
           // Normal collision - game over
           gameState.isRunning = false;
@@ -344,7 +655,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
 
     // Draw obstacles
     gameState.obstacles.forEach(obstacle => {
-      drawObstacle(ctx, obstacle);
+      drawObstacle(ctx, obstacle, gameState);
     });
     
     // Draw power-ups
@@ -353,7 +664,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     });
 
     // Draw player
-    drawPlayer(ctx, player);
+    drawPlayer(ctx, player, gameState);
 
     // Draw particles
     drawParticles(ctx, gameState.particles);
@@ -370,44 +681,85 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     }
   }, []);
 
-  const drawBackground = (ctx: CanvasRenderingContext2D, offset: number) => {
-    // Gradient background
+  // Tema güncelleme fonksiyonu
+  const updateTheme = (gameState: GameState, currentScore: number) => {
+    let newTheme = 'classic';
+    
+    if (currentScore >= THEME_THRESHOLDS.galaxy) {
+      newTheme = 'galaxy';
+    } else if (currentScore >= THEME_THRESHOLDS.volcano) {
+      newTheme = 'volcano';
+    } else if (currentScore >= THEME_THRESHOLDS.ocean) {
+      newTheme = 'ocean';
+    } else if (currentScore >= THEME_THRESHOLDS.forest) {
+      newTheme = 'forest';
+    }
+    
+    if (gameState.currentTheme !== newTheme) {
+      gameState.currentTheme = newTheme;
+      // Tema değişim efekti için parçacık oluştur
+      createThemeChangeParticles(gameState);
+    }
+  };
+
+  const drawBackground = (ctx: CanvasRenderingContext2D, offset: number, gameState: GameState) => {
+    const theme = THEMES[gameState.currentTheme];
+    
+    // 3D atmosfer efektleri
+    drawAtmosphericEffects(ctx, offset, gameState);
+    
+    // Enhanced gradient background with depth
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    gradient.addColorStop(0, '#0a0a0a');
-    gradient.addColorStop(0.5, '#1a1a2e');
-    gradient.addColorStop(1, '#16213e');
+    gradient.addColorStop(0, theme.backgroundColors[0]);
+    gradient.addColorStop(0.3, theme.backgroundColors[1]);
+    gradient.addColorStop(0.7, theme.backgroundColors[0]);
+    gradient.addColorStop(1, theme.backgroundColors[2]);
     
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Grid pattern
-    ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+    // 3D grid pattern with perspective
+    ctx.strokeStyle = theme.gridColor;
     ctx.lineWidth = 1;
     
     const gridSize = 50;
     const offsetX = offset % gridSize;
     
+    // Perspective vertical lines
     for (let x = -offsetX; x < GAME_WIDTH + gridSize; x += gridSize) {
+      const perspective = 1 - (x / GAME_WIDTH) * 0.3;
+      ctx.globalAlpha = 0.1 * perspective;
+      ctx.lineWidth = 1 * perspective;
+      
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      ctx.lineTo(x, GAME_HEIGHT);
+      ctx.lineTo(x + (GAME_WIDTH - x) * 0.1, GAME_HEIGHT);
       ctx.stroke();
     }
     
+    // Perspective horizontal lines
     for (let y = 0; y < GAME_HEIGHT; y += gridSize) {
+      const perspective = 1 - (y / GAME_HEIGHT) * 0.2;
+      ctx.globalAlpha = 0.1 * perspective;
+      ctx.lineWidth = 1 * perspective;
+      
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(GAME_WIDTH, y);
+      ctx.lineTo(GAME_WIDTH, y + (GAME_HEIGHT - y) * 0.05);
       ctx.stroke();
     }
+    
+    ctx.globalAlpha = 1;
 
-    // Neon lines
-    ctx.strokeStyle = '#00ffff';
+    // Enhanced neon wave effect with 3D depth
+    ctx.strokeStyle = theme.waveColor;
     ctx.lineWidth = 2;
-    ctx.shadowColor = '#00ffff';
+    ctx.shadowColor = theme.waveColor;
     ctx.shadowBlur = 10;
     
     const waveOffset = offset * 0.02;
+    
+    // Main wave
     ctx.beginPath();
     for (let x = 0; x < GAME_WIDTH; x += 5) {
       const y = GAME_HEIGHT * 0.3 + Math.sin((x + waveOffset) * 0.01) * 30;
@@ -416,7 +768,143 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     }
     ctx.stroke();
     
+    // Secondary wave for depth
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 5;
+    
+    ctx.beginPath();
+    for (let x = 0; x < GAME_WIDTH; x += 5) {
+      const y = GAME_HEIGHT * 0.3 + 20 + Math.sin((x + waveOffset * 0.7) * 0.012) * 20;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    
+    ctx.globalAlpha = 1;
+    
+    // Tema özel efektleri
+    drawThemeSpecificEffects(ctx, offset, gameState);
+    
     ctx.shadowBlur = 0;
+  };
+  
+  // 3D atmosfer efektleri fonksiyonu
+  const drawAtmosphericEffects = (ctx: CanvasRenderingContext2D, offset: number, gameState: GameState) => {
+    const theme = THEMES[gameState.currentTheme];
+    
+    // Işık ışınları
+    ctx.save();
+    ctx.globalAlpha = 0.1;
+    
+    for (let i = 0; i < 5; i++) {
+      const angle = (offset * 0.001 + i * Math.PI / 3) % (Math.PI * 2);
+      const startX = GAME_WIDTH / 2 + Math.cos(angle) * 100;
+      const startY = GAME_HEIGHT / 2 + Math.sin(angle) * 50;
+      const endX = GAME_WIDTH / 2 + Math.cos(angle) * 400;
+      const endY = GAME_HEIGHT / 2 + Math.sin(angle) * 200;
+      
+      const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+      gradient.addColorStop(0, theme.waveColor);
+      gradient.addColorStop(1, 'transparent');
+      
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 20;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+    }
+    
+    // Dinamik ışıklandırma
+    ctx.globalAlpha = 0.05;
+    const pulseIntensity = Math.sin(offset * 0.005) * 0.5 + 0.5;
+    
+    const lightGradient = ctx.createRadialGradient(
+      GAME_WIDTH / 2, GAME_HEIGHT / 2, 0,
+      GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH
+    );
+    lightGradient.addColorStop(0, theme.waveColor);
+    lightGradient.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+    lightGradient.addColorStop(1, 'transparent');
+    
+    ctx.fillStyle = lightGradient;
+    ctx.globalAlpha = 0.03 * pulseIntensity;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    
+    ctx.restore();
+  };
+  
+  // Tema özel efektleri
+  const drawThemeSpecificEffects = (ctx: CanvasRenderingContext2D, offset: number, gameState: GameState) => {
+    const theme = THEMES[gameState.currentTheme];
+    
+    switch (gameState.currentTheme) {
+      case 'forest':
+        // Ağaç siluetleri
+        ctx.fillStyle = 'rgba(34, 139, 34, 0.3)';
+        for (let i = 0; i < 5; i++) {
+          const x = (i * 200 - offset * 0.3) % (GAME_WIDTH + 100);
+          const height = 80 + Math.sin(i) * 20;
+          ctx.fillRect(x, GAME_HEIGHT - GROUND_HEIGHT - height, 15, height);
+        }
+        break;
+        
+      case 'ocean':
+        // Baloncuklar
+        ctx.fillStyle = 'rgba(135, 206, 235, 0.4)';
+        for (let i = 0; i < 8; i++) {
+          const x = (i * 100 + offset * 0.5) % GAME_WIDTH;
+          const y = GAME_HEIGHT * 0.6 + Math.sin(offset * 0.01 + i) * 50;
+          const size = 5 + Math.sin(i) * 3;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+        
+      case 'volcano':
+        // Lav parçacıkları
+        ctx.fillStyle = 'rgba(255, 69, 0, 0.6)';
+        for (let i = 0; i < 10; i++) {
+          const x = Math.random() * GAME_WIDTH;
+          const y = GAME_HEIGHT - GROUND_HEIGHT + Math.sin(offset * 0.02 + i) * 20;
+          const size = 2 + Math.random() * 3;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+        
+      case 'galaxy':
+        // Yıldızlar
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        for (let i = 0; i < 15; i++) {
+          const x = (i * 60 + offset * 0.1) % GAME_WIDTH;
+          const y = (i * 40) % (GAME_HEIGHT - GROUND_HEIGHT);
+          const size = 1 + Math.sin(offset * 0.05 + i) * 1;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+    }
+  };
+  
+  // Tema değişim parçacıkları
+  const createThemeChangeParticles = (gameState: GameState) => {
+    const theme = THEMES[gameState.currentTheme];
+    for (let i = 0; i < 20; i++) {
+      gameState.particles.push({
+        x: Math.random() * GAME_WIDTH,
+        y: Math.random() * GAME_HEIGHT,
+        velocityX: (Math.random() - 0.5) * 8,
+        velocityY: (Math.random() - 0.5) * 8,
+        size: Math.random() * 5 + 2,
+        color: theme.waveColor,
+        life: 1
+      });
+    }
   };
 
   const drawGround = (ctx: CanvasRenderingContext2D) => {
@@ -432,32 +920,81 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     ctx.shadowBlur = 0;
   };
 
-  const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
+  const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player, gameState: GameState) => {
     ctx.save();
     
     // Adjust size for mini mode
     const drawWidth = player.mode === 'mini' ? player.width * 0.6 : player.width;
     const drawHeight = player.mode === 'mini' ? player.height * 0.6 : player.height;
     
+    // 3D gölge efekti
+    const shadowOffset = 5;
+    const shadowOpacity = 0.3;
+    
+    // Gölge çiz
+    ctx.save();
+    ctx.translate(player.x + player.width/2 + shadowOffset, player.y + player.height/2 + shadowOffset);
+    ctx.rotate((player.rotation * Math.PI) / 180);
+    ctx.globalAlpha = shadowOpacity;
+    ctx.fillStyle = '#000000';
+    
+    if (player.mode === 'normal') {
+      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+    } else if (player.mode === 'gravity') {
+      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+    } else if (player.mode === 'mini') {
+      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+    } else {
+      // Rocket gölgesi
+      ctx.beginPath();
+      ctx.moveTo(-drawWidth/2, drawHeight/2);
+      ctx.lineTo(drawWidth/2, drawHeight/2);
+      ctx.lineTo(drawWidth/3, -drawHeight/2);
+      ctx.lineTo(-drawWidth/3, -drawHeight/2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    
     // Move to player center for rotation
     ctx.translate(player.x + player.width/2, player.y + player.height/2);
     ctx.rotate((player.rotation * Math.PI) / 180);
     
     if (player.mode === 'normal') {
-      // Normal mode - yellow square
+      // Normal mode - 3D efektli sarı kare
       ctx.shadowColor = '#ffff00';
       ctx.shadowBlur = 15;
-      ctx.fillStyle = '#ffff00';
+      
+      // 3D kenar efekti
+      const depth = 4;
+      ctx.fillStyle = '#cccc00'; // Koyu sarı kenar
+      ctx.fillRect(-drawWidth/2 + depth, -drawHeight/2 + depth, drawWidth, drawHeight);
+      
+      // Ana renk
+      const gradient = ctx.createLinearGradient(-drawWidth/2, -drawHeight/2, drawWidth/2, drawHeight/2);
+      gradient.addColorStop(0, '#ffff66');
+      gradient.addColorStop(1, '#cccc00');
+      ctx.fillStyle = gradient;
       ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
       
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
     } else if (player.mode === 'gravity') {
-      // Gravity mode - purple square with gravity symbol
+      // Gravity mode - 3D efektli mor kare
       ctx.shadowColor = '#aa00ff';
       ctx.shadowBlur = 15;
-      ctx.fillStyle = '#aa00ff';
+      
+      // 3D kenar efekti
+      const depth = 4;
+      ctx.fillStyle = '#6a1b9a'; // Koyu mor kenar
+      ctx.fillRect(-drawWidth/2 + depth, -drawHeight/2 + depth, drawWidth, drawHeight);
+      
+      // Ana renk
+      const gradient = ctx.createLinearGradient(-drawWidth/2, -drawHeight/2, drawWidth/2, drawHeight/2);
+      gradient.addColorStop(0, '#bb86fc');
+      gradient.addColorStop(1, '#6a1b9a');
+      ctx.fillStyle = gradient;
       ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
       
       // Gravity symbol (upside down triangle)
@@ -473,22 +1010,169 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       ctx.lineWidth = 2;
       ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
     } else if (player.mode === 'mini') {
-      // Mini mode - green small square
+      // Mini mode - 3D efektli yeşil kare
       ctx.shadowColor = '#00ff44';
       ctx.shadowBlur = 10;
-      ctx.fillStyle = '#00ff44';
+      
+      // 3D kenar efekti
+      const depth = 3;
+      ctx.fillStyle = '#00cc33'; // Koyu yeşil kenar
+      ctx.fillRect(-drawWidth/2 + depth, -drawHeight/2 + depth, drawWidth, drawHeight);
+      
+      // Ana renk
+      const gradient = ctx.createLinearGradient(-drawWidth/2, -drawHeight/2, drawWidth/2, drawHeight/2);
+      gradient.addColorStop(0, '#66ff66');
+      gradient.addColorStop(1, '#00cc33');
+      ctx.fillStyle = gradient;
       ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
       
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
       ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+    } else if (player.mode === 'wave') {
+      // Wave mode - 3D efektli dalga şekli
+      ctx.shadowColor = '#00ffaa';
+      ctx.shadowBlur = 15;
+      
+      // 3D kenar efekti
+      const depth = 4;
+      ctx.fillStyle = '#00cc88'; // Koyu turkuaz kenar
+      ctx.beginPath();
+      ctx.moveTo(-drawWidth/2 + depth, 0 + depth);
+      for (let i = 0; i <= drawWidth; i += 5) {
+        const waveY = Math.sin((i / drawWidth) * Math.PI * 4) * (drawHeight/4);
+        ctx.lineTo(-drawWidth/2 + i + depth, waveY + depth);
+      }
+      ctx.lineTo(drawWidth/2 + depth, drawHeight/2 + depth);
+      ctx.lineTo(-drawWidth/2 + depth, drawHeight/2 + depth);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Ana dalga şekli
+      const gradient = ctx.createLinearGradient(-drawWidth/2, -drawHeight/2, drawWidth/2, drawHeight/2);
+      gradient.addColorStop(0, '#66ffaa');
+      gradient.addColorStop(1, '#00cc88');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(-drawWidth/2, 0);
+      for (let i = 0; i <= drawWidth; i += 5) {
+        const waveY = Math.sin((i / drawWidth) * Math.PI * 4) * (drawHeight/4);
+        ctx.lineTo(-drawWidth/2 + i, waveY);
+      }
+      ctx.lineTo(drawWidth/2, drawHeight/2);
+      ctx.lineTo(-drawWidth/2, drawHeight/2);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (player.mode === 'ball') {
+      // Ball mode - 3D efektli top
+      ctx.shadowColor = '#ff6600';
+      ctx.shadowBlur = 15;
+      
+      // 3D kenar efekti (daire)
+      const depth = 4;
+      ctx.fillStyle = '#cc4400'; // Koyu turuncu kenar
+      ctx.beginPath();
+      ctx.arc(depth, depth, drawWidth/2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Ana top
+      const gradient = ctx.createRadialGradient(-drawWidth/4, -drawHeight/4, 0, 0, 0, drawWidth/2);
+      gradient.addColorStop(0, '#ffaa66');
+      gradient.addColorStop(0.7, '#ff6600');
+      gradient.addColorStop(1, '#cc4400');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, drawWidth/2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // İç ışık efekti
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.arc(-drawWidth/6, -drawHeight/6, drawWidth/6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, drawWidth/2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (player.mode === 'ufo') {
+      // UFO mode - 3D efektli UFO
+      ctx.shadowColor = '#aa44ff';
+      ctx.shadowBlur = 20;
+      
+      // 3D kenar efekti
+      const depth = 4;
+      ctx.fillStyle = '#6622aa'; // Koyu mor kenar
+      ctx.beginPath();
+      ctx.ellipse(depth, depth, drawWidth/2, drawHeight/3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // UFO gövdesi
+      const gradient = ctx.createLinearGradient(-drawWidth/2, -drawHeight/2, drawWidth/2, drawHeight/2);
+      gradient.addColorStop(0, '#cc88ff');
+      gradient.addColorStop(0.5, '#aa44ff');
+      gradient.addColorStop(1, '#6622aa');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, drawWidth/2, drawHeight/3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // UFO kubesi
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.ellipse(0, -drawHeight/6, drawWidth/4, drawHeight/6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      
+      // Işık efektleri
+      ctx.fillStyle = '#ffff00';
+      ctx.globalAlpha = 0.6;
+      for (let i = 0; i < 3; i++) {
+        const angle = (i * Math.PI * 2) / 3;
+        const x = Math.cos(angle) * drawWidth/3;
+        const y = Math.sin(angle) * drawHeight/4 + drawHeight/6;
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, drawWidth/2, drawHeight/3, 0, 0, Math.PI * 2);
+      ctx.stroke();
     } else {
-      // Rocket mode - blue rocket shape
+      // Rocket mode - 3D efektli mavi roket
       ctx.shadowColor = '#00aaff';
       ctx.shadowBlur = 20;
-      ctx.fillStyle = '#00aaff';
       
-      // Rocket body
+      // 3D kenar efekti
+      const depth = 4;
+      ctx.fillStyle = '#0066cc'; // Koyu mavi kenar
+      ctx.beginPath();
+      ctx.moveTo(-drawWidth/2 + depth, drawHeight/2 + depth);
+      ctx.lineTo(drawWidth/2 + depth, drawHeight/2 + depth);
+      ctx.lineTo(drawWidth/3 + depth, -drawHeight/2 + depth);
+      ctx.lineTo(-drawWidth/3 + depth, -drawHeight/2 + depth);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Ana roket gövdesi
+      const gradient = ctx.createLinearGradient(-drawWidth/2, -drawHeight/2, drawWidth/2, drawHeight/2);
+      gradient.addColorStop(0, '#66ccff');
+      gradient.addColorStop(0.5, '#00aaff');
+      gradient.addColorStop(1, '#0066cc');
+      ctx.fillStyle = gradient;
+      
       ctx.beginPath();
       ctx.moveTo(-drawWidth/2, drawHeight/2);
       ctx.lineTo(drawWidth/2, drawHeight/2);
@@ -497,7 +1181,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       ctx.closePath();
       ctx.fill();
       
-      // Rocket fins
+      // Roket kanatları
       ctx.fillStyle = '#0088cc';
       ctx.fillRect(-drawWidth/2 - 5, drawHeight/4, 5, drawHeight/4);
       ctx.fillRect(drawWidth/2, drawHeight/4, 5, drawHeight/4);
@@ -517,13 +1201,41 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     ctx.restore();
   };
 
-  const drawObstacle = (ctx: CanvasRenderingContext2D, obstacle: Obstacle) => {
+  const drawObstacle = (ctx: CanvasRenderingContext2D, obstacle: Obstacle, gameState: GameState) => {
     ctx.save();
+    const theme = THEMES[gameState.currentTheme];
+    
+    // 3D gölge efekti
+    const shadowOffset = 5;
+    const shadowOpacity = 0.3;
     
     switch (obstacle.type) {
       case 'spike':
-        ctx.fillStyle = '#ff0066';
-        ctx.shadowColor = '#ff0066';
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.moveTo(obstacle.x + shadowOffset, obstacle.y + obstacle.height + shadowOffset);
+        ctx.lineTo(obstacle.x + obstacle.width/2 + shadowOffset, obstacle.y + shadowOffset);
+        ctx.lineTo(obstacle.x + obstacle.width + shadowOffset, obstacle.y + obstacle.height + shadowOffset);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const spikeDepth = 4;
+        ctx.fillStyle = '#cc0044'; // Koyu kırmızı kenar
+        ctx.beginPath();
+        ctx.moveTo(obstacle.x + spikeDepth, obstacle.y + obstacle.height + spikeDepth);
+        ctx.lineTo(obstacle.x + obstacle.width/2 + spikeDepth, obstacle.y + spikeDepth);
+        ctx.lineTo(obstacle.x + obstacle.width + spikeDepth, obstacle.y + obstacle.height + spikeDepth);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Ana spike
+        ctx.fillStyle = theme.obstacleColors.spike;
+        ctx.shadowColor = theme.obstacleColors.spike;
         ctx.shadowBlur = 10;
         
         ctx.beginPath();
@@ -535,8 +1247,21 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         break;
         
       case 'block':
-        ctx.fillStyle = '#ff3300';
-        ctx.shadowColor = '#ff3300';
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(obstacle.x + shadowOffset, obstacle.y + shadowOffset, obstacle.width, obstacle.height);
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const blockDepth = 4;
+        ctx.fillStyle = '#cc1100'; // Koyu kırmızı kenar
+        ctx.fillRect(obstacle.x + blockDepth, obstacle.y + blockDepth, obstacle.width, obstacle.height);
+        
+        // Ana blok
+        ctx.fillStyle = theme.obstacleColors.block;
+        ctx.shadowColor = theme.obstacleColors.block;
         ctx.shadowBlur = 10;
         ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
         
@@ -546,13 +1271,30 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         break;
         
       case 'saw':
-        ctx.fillStyle = '#ff0000';
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 15;
-        
         const centerX = obstacle.x + obstacle.width/2;
         const centerY = obstacle.y + obstacle.height/2;
         const radius = obstacle.width/2;
+        
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(centerX + shadowOffset, centerY + shadowOffset, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const sawDepth = 3;
+        ctx.fillStyle = '#cc0000'; // Koyu kırmızı kenar
+        ctx.beginPath();
+        ctx.arc(centerX + sawDepth, centerY + sawDepth, radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Ana saw
+        ctx.fillStyle = theme.obstacleColors.saw;
+        ctx.shadowColor = theme.obstacleColors.saw;
+        ctx.shadowBlur = 15;
         
         // Saw blade
         ctx.beginPath();
@@ -574,31 +1316,22 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         ctx.fill();
         break;
         
-      case 'stairs':
-        ctx.fillStyle = '#00ff88';
-        ctx.shadowColor = '#00ff88';
-        ctx.shadowBlur = 10;
-        
-        // Draw stairs as steps
-        const stepWidth = obstacle.width / 3;
-        const stepHeight = obstacle.height / 3;
-        
-        for (let i = 0; i < 3; i++) {
-          const stepX = obstacle.x + i * stepWidth;
-          const stepY = obstacle.y + obstacle.height - (i + 1) * stepHeight;
-          ctx.fillRect(stepX, stepY, stepWidth, (i + 1) * stepHeight);
-        }
-        
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 3; i++) {
-          const stepX = obstacle.x + i * stepWidth;
-          const stepY = obstacle.y + obstacle.height - (i + 1) * stepHeight;
-          ctx.strokeRect(stepX, stepY, stepWidth, (i + 1) * stepHeight);
-        }
-        break;
+
         
       case 'ceiling_barrier':
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(obstacle.x + shadowOffset, obstacle.y + shadowOffset, obstacle.width, obstacle.height);
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const ceilingDepth = 4;
+        ctx.fillStyle = '#cc4400'; // Koyu turuncu kenar
+        ctx.fillRect(obstacle.x + ceilingDepth, obstacle.y + ceilingDepth, obstacle.width, obstacle.height);
+        
+        // Ana barrier
         ctx.fillStyle = '#ff6600';
         ctx.shadowColor = '#ff6600';
         ctx.shadowBlur = 15;
@@ -616,6 +1349,19 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         break;
         
       case 'floor_barrier':
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(obstacle.x + shadowOffset, obstacle.y + shadowOffset, obstacle.width, obstacle.height);
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const floorDepth = 4;
+        ctx.fillStyle = '#cc4400'; // Koyu turuncu kenar
+        ctx.fillRect(obstacle.x + floorDepth, obstacle.y + floorDepth, obstacle.width, obstacle.height);
+        
+        // Ana barrier
         ctx.fillStyle = '#ff6600';
         ctx.shadowColor = '#ff6600';
         ctx.shadowBlur = 15;
@@ -631,6 +1377,147 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         ctx.lineWidth = 2;
         ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
         break;
+        
+      case 'rotating_platform':
+        // Dönen platform çizimi
+        ctx.save();
+        
+        // Platform merkezini hesapla
+        const centerX = obstacle.x + obstacle.width / 2;
+        const centerY = obstacle.y + obstacle.height / 2;
+        
+        // Merkeze translate et ve döndür
+        ctx.translate(centerX, centerY);
+        ctx.rotate((obstacle.rotation || 0) * Math.PI / 180);
+        
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(-obstacle.width/2 + shadowOffset, -obstacle.height/2 + shadowOffset, obstacle.width, obstacle.height);
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const platformDepth = 3;
+        ctx.fillStyle = '#0066cc'; // Koyu mavi kenar
+        ctx.fillRect(-obstacle.width/2 + platformDepth, -obstacle.height/2 + platformDepth, obstacle.width, obstacle.height);
+        
+        // Ana platform
+        const gradient = ctx.createLinearGradient(-obstacle.width/2, -obstacle.height/2, obstacle.width/2, obstacle.height/2);
+        gradient.addColorStop(0, '#00aaff');
+        gradient.addColorStop(0.5, '#0088dd');
+        gradient.addColorStop(1, '#0066bb');
+        
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = '#00aaff';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(-obstacle.width/2, -obstacle.height/2, obstacle.width, obstacle.height);
+        
+        // Platform kenarları
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-obstacle.width/2, -obstacle.height/2, obstacle.width, obstacle.height);
+        
+        // Dönen ok işareti
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('⟲', 0, 4);
+        
+        ctx.restore();
+        break;
+        
+      case 'sliding_floor':
+        // Kayar zemin çizimi
+        ctx.save();
+        
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(obstacle.x + shadowOffset, obstacle.y + shadowOffset, obstacle.width, obstacle.height);
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const floorDepth = 2;
+        ctx.fillStyle = '#cc6600'; // Koyu turuncu kenar
+        ctx.fillRect(obstacle.x + floorDepth, obstacle.y + floorDepth, obstacle.width, obstacle.height);
+        
+        // Ana zemin
+        const floorGradient = ctx.createLinearGradient(obstacle.x, obstacle.y, obstacle.x + obstacle.width, obstacle.y + obstacle.height);
+        floorGradient.addColorStop(0, '#ff9900');
+        floorGradient.addColorStop(0.5, '#ff7700');
+        floorGradient.addColorStop(1, '#ff5500');
+        
+        ctx.fillStyle = floorGradient;
+        ctx.shadowColor = '#ff9900';
+        ctx.shadowBlur = 12;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        
+        // Hareket çizgileri
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < obstacle.width; i += 20) {
+          ctx.beginPath();
+          ctx.moveTo(obstacle.x + i, obstacle.y + 3);
+          ctx.lineTo(obstacle.x + i + 10, obstacle.y + 3);
+          ctx.stroke();
+        }
+        
+        // Kenar çizgisi
+        ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        
+        ctx.restore();
+        break;
+        
+      case 'direction_changer':
+        // Yön değiştirici çizimi
+        ctx.save();
+        
+        // Gölge çiz
+        ctx.save();
+        ctx.globalAlpha = shadowOpacity;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(obstacle.x + shadowOffset, obstacle.y + shadowOffset, obstacle.width, obstacle.height);
+        ctx.restore();
+        
+        // 3D kenar efekti
+        const changerDepth = 3;
+        ctx.fillStyle = '#6600cc'; // Koyu mor kenar
+        ctx.fillRect(obstacle.x + changerDepth, obstacle.y + changerDepth, obstacle.width, obstacle.height);
+        
+        // Ana değiştirici
+        const changerGradient = ctx.createRadialGradient(
+          obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2, 0,
+          obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2, obstacle.width/2
+        );
+        changerGradient.addColorStop(0, '#aa00ff');
+        changerGradient.addColorStop(0.7, '#8800dd');
+        changerGradient.addColorStop(1, '#6600bb');
+        
+        ctx.fillStyle = changerGradient;
+        ctx.shadowColor = '#aa00ff';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        
+        // Yön oku
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        let arrow = '↑';
+        if (obstacle.changeDirection === 'down') arrow = '↓';
+        else if (obstacle.changeDirection === 'left') arrow = '←';
+        else if (obstacle.changeDirection === 'right') arrow = '→';
+        
+        ctx.fillText(arrow, obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2 + 6);
+        
+        // Kenar çizgisi
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        
+        ctx.restore();
+        break;
     }
     
     ctx.shadowBlur = 0;
@@ -638,21 +1525,47 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   };
 
   const spawnObstacle = (gameState: GameState) => {
-    let types: ('spike' | 'block' | 'saw' | 'stairs' | 'ceiling_barrier' | 'floor_barrier')[];
+    let types: ('spike' | 'block' | 'saw' | 'ceiling_barrier' | 'floor_barrier' | 'rotating_platform' | 'sliding_floor' | 'direction_changer')[];
     const player = gameState.player;
     
     if (gameState.rocketModeActive) {
       // In rocket mode, spawn ceiling and floor barriers
       types = ['ceiling_barrier', 'floor_barrier', 'spike', 'block'];
+      // Add rotating platforms after score 300
+      if (gameState.score >= 300) {
+        types.push('rotating_platform');
+      }
+      // Add sliding floors and direction changers after score 400
+      if (gameState.score >= 400) {
+        types.push('sliding_floor', 'direction_changer');
+      }
     } else if (player.mode === 'gravity') {
       // Gravity mode: Ceiling obstacles and inverted challenges
       types = ['ceiling_barrier', 'spike', 'block'];
+      if (gameState.score >= 300) {
+        types.push('rotating_platform');
+      }
+      if (gameState.score >= 400) {
+        types.push('sliding_floor', 'direction_changer');
+      }
     } else if (player.mode === 'mini') {
       // Mini mode: Lower obstacles and tight spaces
       types = ['spike', 'block', 'saw'];
+      if (gameState.score >= 300) {
+        types.push('rotating_platform');
+      }
+      if (gameState.score >= 400) {
+        types.push('sliding_floor', 'direction_changer');
+      }
     } else {
-      // Normal obstacles (removed 200m stairs requirement)
-      types = ['spike', 'block', 'saw', 'stairs'];
+      // Normal obstacles
+      types = ['spike', 'block', 'saw'];
+      if (gameState.score >= 300) {
+        types.push('rotating_platform');
+      }
+      if (gameState.score >= 400) {
+        types.push('sliding_floor', 'direction_changer');
+      }
     }
     
     const type = types[Math.floor(Math.random() * types.length)];
@@ -723,16 +1636,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         };
         break;
         
-      case 'stairs':
-        obstacle = {
-          x: GAME_WIDTH + 50,
-          y: GAME_HEIGHT - GROUND_HEIGHT - 80,
-          width: 60,
-          height: 80,
-          type: 'stairs',
-          passed: false
-        };
-        break;
+
         
       case 'ceiling_barrier':
         obstacle = {
@@ -755,14 +1659,93 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
           passed: false
         };
         break;
+        
+      case 'rotating_platform':
+        let platformY = GAME_HEIGHT - GROUND_HEIGHT - 80;
+        
+        // Adjust for different modes
+        if (player.mode === 'mini') {
+          platformY = GAME_HEIGHT - GROUND_HEIGHT - 60;
+        } else if (player.mode === 'gravity') {
+          platformY = 100; // Higher position for gravity mode
+        }
+        
+        obstacle = {
+          x: GAME_WIDTH + 50,
+          y: platformY,
+          width: 80,
+          height: 20,
+          type: 'rotating_platform',
+          passed: false,
+          rotation: 0,
+          rotationSpeed: 2 + Math.random() * 3 // Random rotation speed between 2-5
+        };
+        break;
+        
+      case 'sliding_floor':
+        let floorY = GAME_HEIGHT - GROUND_HEIGHT;
+        let floorWidth = 120;
+        
+        // Adjust for different modes
+        if (player.mode === 'mini') {
+          floorWidth = 100;
+        }
+        
+        obstacle = {
+          x: GAME_WIDTH + 50,
+          y: floorY,
+          width: floorWidth,
+          height: 15,
+          type: 'sliding_floor',
+          passed: false,
+          slideDirection: Math.random() > 0.5 ? 'left' : 'right',
+          slideSpeed: 1 + Math.random() * 2, // Random slide speed between 1-3
+          originalX: GAME_WIDTH + 50,
+          slideRange: 60 + Math.random() * 40 // Random slide range between 60-100
+        };
+        break;
+        
+      case 'direction_changer':
+        let changerY = GAME_HEIGHT - GROUND_HEIGHT - 40;
+        
+        // Adjust for different modes
+        if (player.mode === 'mini') {
+          changerY = GAME_HEIGHT - GROUND_HEIGHT - 30;
+        } else if (player.mode === 'gravity') {
+          changerY = 80;
+        }
+        
+        const directions: ('up' | 'down' | 'left' | 'right')[] = ['up', 'down', 'left', 'right'];
+        
+        obstacle = {
+          x: GAME_WIDTH + 50,
+          y: changerY,
+          width: 30,
+          height: 30,
+          type: 'direction_changer',
+          passed: false,
+          changeDirection: directions[Math.floor(Math.random() * directions.length)]
+        };
+        break;
     }
     
     gameState.obstacles.push(obstacle);
   };
 
   const checkCollision = (player: Player, obstacle: Obstacle): boolean => {
-    // For stairs, only check collision from above (platform behavior)
-    if (obstacle.type === 'stairs') {
+    // Special collision for rotating platforms (platform behavior)
+    if (obstacle.type === 'rotating_platform') {
+      return (
+        player.x < obstacle.x + obstacle.width &&
+        player.x + player.width > obstacle.x &&
+        player.y + player.height > obstacle.y &&
+        player.y + player.height < obstacle.y + 25 && // Only top surface collision
+        player.velocityY >= 0 // Only when falling down
+      );
+    }
+    
+    // Special collision for sliding floors (platform behavior)
+    if (obstacle.type === 'sliding_floor') {
       return (
         player.x < obstacle.x + obstacle.width &&
         player.x + player.width > obstacle.x &&
@@ -772,7 +1755,12 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       );
     }
     
-    // Normal collision for other obstacles
+    // Direction changer has special effect (not deadly)
+    if (obstacle.type === 'direction_changer') {
+      return false; // Direction changers don't kill, they just change direction
+    }
+    
+    // Normal collision for all other obstacles
     return (
       player.x < obstacle.x + obstacle.width &&
       player.x + player.width > obstacle.x &&
@@ -873,6 +1861,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   };
 
   const createJumpParticles = (gameState: GameState, x: number, y: number) => {
+    const theme = THEMES[gameState.currentTheme];
     for (let i = 0; i < 5; i++) {
       gameState.particles.push({
         x: x + Math.random() * 20,
@@ -880,13 +1869,14 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         velocityX: (Math.random() - 0.5) * 4,
         velocityY: Math.random() * -3,
         size: Math.random() * 3 + 1,
-        color: '#ffff00',
+        color: theme.particleColors.jump,
         life: 1
       });
     }
   };
 
   const createExplosionParticles = (gameState: GameState, x: number, y: number) => {
+    const theme = THEMES[gameState.currentTheme];
     for (let i = 0; i < 15; i++) {
       gameState.particles.push({
         x: x,
@@ -894,13 +1884,14 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         velocityX: (Math.random() - 0.5) * 10,
         velocityY: (Math.random() - 0.5) * 10,
         size: Math.random() * 5 + 2,
-        color: Math.random() > 0.5 ? '#ff0066' : '#ffff00',
+        color: Math.random() > 0.5 ? theme.particleColors.explosion : theme.particleColors.jump,
         life: 1
       });
     }
   };
 
   const createRocketParticles = (gameState: GameState, x: number, y: number) => {
+    const theme = THEMES[gameState.currentTheme];
     for (let i = 0; i < 3; i++) {
       gameState.particles.push({
         x: x - 10 + Math.random() * 20,
@@ -908,7 +1899,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         velocityX: (Math.random() - 0.5) * 2,
         velocityY: Math.random() * 2 + 1,
         size: Math.random() * 4 + 2,
-        color: Math.random() > 0.5 ? '#00aaff' : '#ffffff',
+        color: Math.random() > 0.5 ? theme.particleColors.rocket : '#ffffff',
         life: 1
       });
     }
@@ -932,16 +1923,84 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     particles.forEach(particle => {
       ctx.save();
       ctx.globalAlpha = particle.life;
-      ctx.fillStyle = particle.color;
+      
+      // 3D gölge efekti
+      const shadowOffset = 2;
+      const shadowOpacity = 0.3;
+      
+      // Gölge çiz
+      ctx.save();
+      ctx.globalAlpha = shadowOpacity;
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(particle.x + shadowOffset, particle.y + shadowOffset, particle.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      
+      // Ana partikül - gradient efekti
+      const gradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.size);
+      gradient.addColorStop(0, '#ffffff');
+      gradient.addColorStop(0.5, particle.color);
+      gradient.addColorStop(1, '#000000');
+      ctx.fillStyle = gradient;
       ctx.shadowColor = particle.color;
-      ctx.shadowBlur = 5;
+      ctx.shadowBlur = 10;
       
       ctx.beginPath();
       ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
       ctx.fill();
       
+      // İç ışık efekti
+      ctx.globalAlpha = particle.life * 0.5;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.shadowBlur = 0;
       ctx.restore();
     });
+  };
+
+  const checkNewMovementAbilities = (gameState: GameState, score: number) => {
+    // Double jump ability at 300 points
+    if (score >= 300 && gameState.maxMultiJumps < 2 && gameState.lastAbilityUnlockScore < 300) {
+      gameState.maxMultiJumps = 2;
+      gameState.lastAbilityUnlockScore = 300;
+      createExplosionParticles(gameState, gameState.player.x, gameState.player.y);
+    }
+    
+    // Triple jump ability at 600 points
+    if (score >= 600 && gameState.maxMultiJumps < 3 && gameState.lastAbilityUnlockScore < 600) {
+      gameState.maxMultiJumps = 3;
+      gameState.lastAbilityUnlockScore = 600;
+      createExplosionParticles(gameState, gameState.player.x, gameState.player.y);
+    }
+    
+    // Dash ability at 900 points
+    if (score >= 900 && !gameState.dashAbilityActive && gameState.lastAbilityUnlockScore < 900) {
+      gameState.dashAbilityActive = true;
+      gameState.lastAbilityUnlockScore = 900;
+      createRocketParticles(gameState, gameState.player.x, gameState.player.y);
+    }
+    
+    // Shield ability at 1300 points
+    if (score >= 1300 && gameState.lastAbilityUnlockScore < 1300) {
+      gameState.shieldActive = true;
+      gameState.shieldEndTime = Date.now() + 5000; // 5 seconds
+      gameState.lastAbilityUnlockScore = 1300;
+      createExplosionParticles(gameState, gameState.player.x, gameState.player.y);
+    }
+    
+    // Update dash cooldown
+    if (gameState.dashCooldown > 0) {
+      gameState.dashCooldown--;
+    }
+    
+    // Update shield
+    if (gameState.shieldActive && Date.now() > gameState.shieldEndTime) {
+      gameState.shieldActive = false;
+    }
   };
 
   const startGame = useCallback(() => {
@@ -972,7 +2031,18 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       gameSpeed: GAME_SPEED,
       backgroundOffset: 0,
       distance: 0,
-      rocketModeActive: false
+      rocketModeActive: false,
+      currentTheme: 'classic',
+      speedBoostActive: false,
+      speedBoostEndTime: 0,
+      lastSpeedChangeScore: 0,
+      multiJumpCount: 0,
+      maxMultiJumps: 1,
+      dashAbilityActive: false,
+      dashCooldown: 0,
+      shieldActive: false,
+      shieldEndTime: 0,
+      lastAbilityUnlockScore: 0
     };
 
     if (gameLoopRef.current) {
@@ -992,6 +2062,13 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       if (key === 'w') {
         e.preventDefault();
         gameStateRef.current.keys.w = true;
+      }
+      if (key === 'd' && gameStateRef.current.dashAbilityActive && gameStateRef.current.dashCooldown === 0) {
+        e.preventDefault();
+        // Dash ability
+        gameStateRef.current.player.x += 80; // Dash forward
+        gameStateRef.current.dashCooldown = 120; // 2 second cooldown at 60fps
+        createRocketParticles(gameStateRef.current, gameStateRef.current.player.x, gameStateRef.current.player.y);
       }
       if (key === 'r' && gameOver) {
         startGame();
@@ -1029,6 +2106,9 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         <div className="text-xl font-bold neon-text">
           Distance: <span className="text-cyan-400">{distance}m</span>
         </div>
+        <div className="text-lg font-bold neon-text">
+          Tema: <span className="text-purple-400">{THEMES[gameStateRef.current.currentTheme].name}</span>
+        </div>
         {gameStateRef.current.rocketModeActive && (
           <div className="flex items-center gap-4">
             <div className="text-lg font-bold neon-text text-blue-400">
@@ -1043,6 +2123,47 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
                 ></div>
               </div>
             </div>
+          </div>
+        )}
+        {gameStateRef.current.speedBoostActive && (
+          <div className="text-lg font-bold neon-text animate-pulse">
+            {gameStateRef.current.gameSpeed > GAME_SPEED * 1.5 ? (
+              <span className="text-red-400">⚡ SPEED BOOST!</span>
+            ) : (
+              <span className="text-blue-400">🐌 SLOW MODE</span>
+            )}
+          </div>
+        )}
+        {gameStateRef.current.player.mode !== 'normal' && gameStateRef.current.player.mode !== 'mini' && gameStateRef.current.player.mode !== 'gravity' && gameStateRef.current.player.mode !== 'rocket' && (
+          <div className="text-lg font-bold neon-text animate-pulse">
+            {gameStateRef.current.player.mode === 'wave' && (
+              <span className="text-green-400">🌊 WAVE MODE!</span>
+            )}
+            {gameStateRef.current.player.mode === 'ball' && (
+              <span className="text-orange-400">⚽ BALL MODE!</span>
+            )}
+            {gameStateRef.current.player.mode === 'ufo' && (
+              <span className="text-purple-400">🛸 UFO MODE!</span>
+            )}
+          </div>
+        )}
+        {gameStateRef.current.maxMultiJumps > 1 && (
+          <div className="text-md font-bold neon-text">
+            <span className="text-yellow-400">🦘 Multi Jump: {gameStateRef.current.maxMultiJumps}x</span>
+          </div>
+        )}
+        {gameStateRef.current.dashAbilityActive && (
+          <div className="text-md font-bold neon-text">
+            {gameStateRef.current.dashCooldown > 0 ? (
+              <span className="text-gray-400">⚡ Dash: {Math.ceil(gameStateRef.current.dashCooldown / 60)}s</span>
+            ) : (
+              <span className="text-cyan-400">⚡ Dash Ready! (D)</span>
+            )}
+          </div>
+        )}
+        {gameStateRef.current.shieldActive && (
+          <div className="text-md font-bold neon-text animate-pulse">
+            <span className="text-gold-400">🛡️ SHIELD ACTIVE!</span>
           </div>
         )}
       </div>
@@ -1076,8 +2197,10 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
               <div className="text-cyan-300 text-sm space-y-2">
                 <p>🎮 SPACE / ↑ to jump (Normal mode)</p>
                 <p>🚀 W to hover (Rocket mode - after 500m)</p>
+                <p>🦘 Multi-jump unlocks at 300 points!</p>
+                <p>⚡ D for dash ability (unlocks at 900 points)</p>
+                <p>🛡️ Shield protection at 1300 points</p>
                 <p>🎯 Avoid obstacles & barriers!</p>
-                <p>🪜 Jump on stairs after 200m</p>
                 <p>⚡ Survive as long as possible!</p>
                 {gameOver && <p>🔄 Press R to restart</p>}
               </div>
@@ -1093,4 +2216,56 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       `}</style>
     </div>
   );
+}
+
+// Dynamic speed change system
+function checkDynamicSpeedChange(gameState: any, score: number) {
+  const currentTime = Date.now();
+  
+  // Check if speed boost has ended
+  if (gameState.speedBoostActive && currentTime > gameState.speedBoostEndTime) {
+    gameState.speedBoostActive = false;
+    gameState.gameSpeed = GAME_SPEED + Math.floor(gameState.camera.x / 1000) * 0.5;
+  }
+  
+  // Speed change intervals (every 200 points after 600)
+  const speedChangeInterval = 200;
+  const startScore = 600;
+  
+  if (score >= startScore && score - gameState.lastSpeedChangeScore >= speedChangeInterval) {
+    gameState.lastSpeedChangeScore = score;
+    
+    // Random speed change type
+    const changeType = Math.random();
+    
+    if (changeType < 0.4) {
+      // Speed boost (40% chance)
+      gameState.speedBoostActive = true;
+      gameState.speedBoostEndTime = currentTime + 3000; // 3 seconds
+      gameState.gameSpeed *= 1.8;
+      
+      // Create visual effect
+      createRocketParticles(gameState, gameState.player.x, gameState.player.y);
+    } else if (changeType < 0.7) {
+      // Slow down (30% chance)
+      gameState.speedBoostActive = true;
+      gameState.speedBoostEndTime = currentTime + 2500; // 2.5 seconds
+      gameState.gameSpeed *= 0.5;
+      
+      // Create visual effect
+      createExplosionParticles(gameState, gameState.player.x, gameState.player.y);
+    } else {
+      // Sudden acceleration burst (30% chance)
+      gameState.speedBoostActive = true;
+      gameState.speedBoostEndTime = currentTime + 1500; // 1.5 seconds
+      gameState.gameSpeed *= 2.2;
+      
+      // Create intense visual effect
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          createRocketParticles(gameState, gameState.player.x + i * 20, gameState.player.y);
+        }, i * 200);
+      }
+    }
+  }
 }
