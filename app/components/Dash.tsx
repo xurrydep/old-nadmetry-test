@@ -91,6 +91,7 @@ interface GameState {
   shieldEndTime: number;
   lastAbilityUnlockScore: number;
   score: number;
+  rocketCooldown: number;
 }
 
 const GAME_WIDTH = 800;
@@ -300,7 +301,8 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     shieldActive: false,
     shieldEndTime: 0,
     lastAbilityUnlockScore: 0,
-    score: 0
+    score: 0,
+    rocketCooldown: 0
   });
 
   const gameLoop = useCallback(() => {
@@ -341,11 +343,16 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     // Player physics
     const player = gameState.player;
     
-    // Activate rocket mode after 500m
-    if (gameState.distance > 500 && !gameState.rocketModeActive) {
+    // Activate rocket mode after 500m (with cooldown check)
+    if (gameState.distance > 500 && !gameState.rocketModeActive && gameState.rocketCooldown <= 0) {
       gameState.rocketModeActive = true;
       player.mode = 'rocket';
       player.rocketFuel = 100;
+    }
+    
+    // Decrease rocket cooldown
+    if (gameState.rocketCooldown > 0) {
+      gameState.rocketCooldown--;
     }
     
     if (player.mode === 'normal' || player.mode === 'mini') {
@@ -430,29 +437,16 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       player.y += player.velocityY;
       
-      // Check if rocket fuel is depleted - trigger evolution
+      // Check if rocket fuel is depleted - return to normal mode
       if (player.rocketFuel <= 0) {
-        // Randomly evolve to a new mode when fuel runs out (removed speed mode)
-        const evolutionModes = ['gravity', 'mini'];
-        const newMode = evolutionModes[Math.floor(Math.random() * evolutionModes.length)];
-        player.mode = newMode as 'gravity' | 'mini';
+        player.mode = 'normal';
         gameState.rocketModeActive = false;
         player.rocketFuel = 0;
-        
-        // Adjust player size for mini mode
-        if (newMode === 'mini') {
-          player.width = PLAYER_SIZE * 0.6;
-          player.height = PLAYER_SIZE * 0.6;
-        } else {
-          // Reset size for other modes
-          player.width = PLAYER_SIZE;
-          player.height = PLAYER_SIZE;
-        }
-        
-        // Special setup for gravity mode
-        if (newMode === 'gravity') {
-          player.onGround = false;
-        }
+        player.width = PLAYER_SIZE;
+        player.height = PLAYER_SIZE;
+        player.onGround = true;
+        gameState.rocketCooldown = 300; // 5 second cooldown at 60fps
+        createExplosionParticles(gameState, player.x, player.y);
       }
       
       // Ceiling collision
@@ -540,6 +534,19 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       // Gentle oscillating rotation
       player.rotation = Math.sin(Date.now() * 0.005) * 10;
+      
+      // Check if UFO fuel is depleted - return to normal mode
+       if (player.rocketFuel <= 0) {
+         player.mode = 'normal';
+         gameState.rocketModeActive = false;
+         player.rocketFuel = 0;
+         player.width = PLAYER_SIZE;
+         player.height = PLAYER_SIZE;
+         player.onGround = true;
+         player.rotation = 0;
+         gameState.rocketCooldown = 300; // 5 second cooldown at 60fps
+         createExplosionParticles(gameState, player.x, player.y);
+       }
     }
 
     // Move camera with player
@@ -2052,7 +2059,8 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       shieldActive: false,
       shieldEndTime: 0,
       lastAbilityUnlockScore: 0,
-      score: 0
+      score: 0,
+      rocketCooldown: 0
     };
 
     if (gameLoopRef.current) {
