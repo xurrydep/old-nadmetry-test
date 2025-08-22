@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface GameObject {
   x: number;
@@ -36,7 +36,11 @@ const GRAVITY = 0.5;
 const OBSTACLE_SPEED = 5;
 const OBSTACLE_SPAWN_RATE = 0.02;
 
-export default function GeometryDashGame() {
+interface SpaceShooterGameProps {
+  playerAddress: string;
+}
+
+export default function SpaceShooterGame({ playerAddress: _playerAddress }: SpaceShooterGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -51,7 +55,7 @@ export default function GeometryDashGame() {
     isRunning: false
   });
 
-  const startGame = () => {
+  const startGame = useCallback(() => {
     setGameStarted(true);
     setGameOver(false);
     setScore(0);
@@ -68,7 +72,7 @@ export default function GeometryDashGame() {
       cancelAnimationFrame(gameLoopRef.current);
     }
     gameLoop();
-  };
+  }, []);
 
   const drawBackground = (ctx: CanvasRenderingContext2D) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
@@ -107,28 +111,9 @@ export default function GeometryDashGame() {
     }
   };
 
-  const jumpAnimation = () => {
-    if (gameStateRef.current.player.jumping) {
-      const player = gameStateRef.current.player;
-      player.y += player.velocityY;
-      player.velocityY += GRAVITY;
 
-      // Zıplama animasyonu sırasında bir eğilme efekti ekleyelim
-      player.width = 30 + Math.sin(player.y / 10) * 5; // Zıplama sırasında genişleme
-      player.height = 30 + Math.cos(player.y / 10) * 5;
-    }
-  };
 
-  const createParticle = (x: number, y: number) => {
-    gameStateRef.current.particles.push({
-      x,
-      y,
-      radius: Math.random() * 3 + 2,
-      color: 'rgba(255, 255, 255, 0.8)',
-      speedX: Math.random() * 2 - 1,
-      speedY: Math.random() * 2 - 1
-    });
-  };
+
 
   const drawParticles = (ctx: CanvasRenderingContext2D) => {
     ctx.globalCompositeOperation = 'lighter';
@@ -154,7 +139,6 @@ export default function GeometryDashGame() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const currentTime = Date.now();
     const gameState = gameStateRef.current;
 
     // Arka planı çiz
@@ -264,7 +248,7 @@ export default function GeometryDashGame() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [startGame]);
 
   return (
     <div className="flex flex-col items-center gap-4 p-4">

@@ -25,9 +25,7 @@ function PrivyAuth({ onAddressChange }: { onAddressChange: (address: string) => 
   
   const { 
     user: monadUser, 
-    hasUsername, 
-    isLoading: isLoadingUser, 
-    error: userError 
+    hasUsername
   } = useMonadGamesUser(accountAddress);
 
   useEffect(() => {
@@ -52,7 +50,7 @@ function PrivyAuth({ onAddressChange }: { onAddressChange: (address: string) => 
       setAccountAddress("");
       onAddressChange("");
     }
-  }, [authenticated, user, ready, onAddressChange]);
+  }, [authenticated, user, ready, onAddressChange, monadGamesId]);
 
   const copyToClipboard = async () => {
     if (accountAddress) {
