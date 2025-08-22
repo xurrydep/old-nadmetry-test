@@ -255,11 +255,11 @@ const THEME_THRESHOLDS = {
   galaxy: 5000
 };
 
-interface GeometryDashGameProps {
+interface NadmetryDashGameProps {
   playerAddress: string;
 }
 
-export default function GeometryDashGame({}: GeometryDashGameProps) {
+export default function NadmetryDashGame({}: NadmetryDashGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -2199,7 +2199,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
           <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-90">
             <div className="text-center text-white">
               <h1 className="text-4xl font-bold mb-4 neon-text text-yellow-400">
-                GEOMETRY DASH
+                NADMETRY DASH
               </h1>
               <button
                 onClick={startGame}
