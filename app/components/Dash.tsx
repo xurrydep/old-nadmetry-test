@@ -952,7 +952,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       },
       obstacles: [],
       powerUps: [],
-      particles: []
+      particles: [],
       camera: { x: 0 },
       keys: { space: false, up: false, w: false },
       isRunning: true,
