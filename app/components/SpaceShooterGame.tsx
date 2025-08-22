@@ -19,6 +19,15 @@ interface Obstacle extends GameObject {
   type: 'square' | 'circle' | 'triangle'; // Engel tipi
 }
 
+interface Particle {
+  x: number;
+  y: number;
+  radius: number;
+  color: string;
+  speedX: number;
+  speedY: number;
+}
+
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const PLAYER_SPEED = 5;
@@ -37,6 +46,7 @@ export default function GeometryDashGame() {
   const gameStateRef = useRef({
     player: { x: 50, y: GAME_HEIGHT - 100, width: 30, height: 30, speed: PLAYER_SPEED, velocityY: 0, jumping: false } as Player,
     obstacles: [] as Obstacle[],
+    particles: [] as Particle[],
     keys: { space: false },
     isRunning: false
   });
@@ -49,6 +59,7 @@ export default function GeometryDashGame() {
     gameStateRef.current = {
       player: { x: 50, y: GAME_HEIGHT - 100, width: 30, height: 30, speed: PLAYER_SPEED, velocityY: 0, jumping: false },
       obstacles: [],
+      particles: [],
       keys: { space: false },
       isRunning: true
     };
@@ -109,7 +120,7 @@ export default function GeometryDashGame() {
   };
 
   const createParticle = (x: number, y: number) => {
-    particles.push({
+    gameStateRef.current.particles.push({
       x,
       y,
       radius: Math.random() * 3 + 2,
@@ -121,7 +132,7 @@ export default function GeometryDashGame() {
 
   const drawParticles = (ctx: CanvasRenderingContext2D) => {
     ctx.globalCompositeOperation = 'lighter';
-    particles.forEach((particle, index) => {
+    gameStateRef.current.particles.forEach((particle, index) => {
       ctx.beginPath();
       ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
       ctx.fillStyle = particle.color;
@@ -131,7 +142,7 @@ export default function GeometryDashGame() {
       particle.radius *= 0.98; // Partiküllerin küçülmesi
 
       if (particle.radius < 0.5) {
-        particles.splice(index, 1);
+        gameStateRef.current.particles.splice(index, 1);
       }
     });
   };
