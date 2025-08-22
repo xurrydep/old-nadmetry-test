@@ -30,6 +30,17 @@ interface Particle {
   life: number;
 }
 
+interface GameState {
+  player: Player;
+  obstacles: Obstacle[];
+  particles: Particle[];
+  camera: { x: number };
+  keys: { space: boolean; up: boolean };
+  isRunning: boolean;
+  gameSpeed: number;
+  backgroundOffset: number;
+}
+
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const GROUND_HEIGHT = 100;
@@ -322,7 +333,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     ctx.restore();
   };
 
-  const spawnObstacle = (gameState: any) => {
+  const spawnObstacle = (gameState: GameState) => {
     const types: ('spike' | 'block' | 'saw')[] = ['spike', 'block', 'saw'];
     const type = types[Math.floor(Math.random() * types.length)];
     
@@ -375,7 +386,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     );
   };
 
-  const createJumpParticles = (gameState: any, x: number, y: number) => {
+  const createJumpParticles = (gameState: GameState, x: number, y: number) => {
     for (let i = 0; i < 5; i++) {
       gameState.particles.push({
         x: x + Math.random() * 20,
@@ -389,7 +400,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     }
   };
 
-  const createExplosionParticles = (gameState: any, x: number, y: number) => {
+  const createExplosionParticles = (gameState: GameState, x: number, y: number) => {
     for (let i = 0; i < 15; i++) {
       gameState.particles.push({
         x: x,
@@ -403,7 +414,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     }
   };
 
-  const updateParticles = (gameState: any) => {
+  const updateParticles = (gameState: GameState) => {
     gameState.particles.forEach((particle: Particle, index: number) => {
       particle.x += particle.velocityX;
       particle.y += particle.velocityY;
