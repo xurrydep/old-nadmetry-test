@@ -90,6 +90,7 @@ interface GameState {
   shieldActive: boolean;
   shieldEndTime: number;
   lastAbilityUnlockScore: number;
+  score: number;
 }
 
 const GAME_WIDTH = 800;
@@ -185,8 +186,39 @@ const THEMES: { [key: string]: Theme } = {
   }
 }
 
+// Particle creation functions
+const createRocketParticles = (gameState: GameState, x: number, y: number) => {
+  const theme = THEMES[gameState.currentTheme];
+  for (let i = 0; i < 3; i++) {
+    gameState.particles.push({
+      x: x - 10 + Math.random() * 20,
+      y: y + 5,
+      velocityX: (Math.random() - 0.5) * 2,
+      velocityY: Math.random() * 2 + 1,
+      size: Math.random() * 4 + 2,
+      color: Math.random() > 0.5 ? theme.particleColors.rocket : '#ffffff',
+      life: 1
+    });
+  }
+};
+
+const createExplosionParticles = (gameState: GameState, x: number, y: number) => {
+  const theme = THEMES[gameState.currentTheme];
+  for (let i = 0; i < 15; i++) {
+    gameState.particles.push({
+      x: x,
+      y: y,
+      velocityX: (Math.random() - 0.5) * 10,
+      velocityY: (Math.random() - 0.5) * 10,
+      size: Math.random() * 5 + 2,
+      color: Math.random() > 0.5 ? theme.particleColors.explosion : theme.particleColors.jump,
+      life: 1
+    });
+  }
+};
+
 // Advanced evolutionary transition system
-function checkEvolutionaryTransition(gameState: any, score: number) {
+function checkEvolutionaryTransition(gameState: GameState, score: number) {
   const player = gameState.player;
   
   // Wave mode at 800 points
@@ -267,7 +299,8 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     dashCooldown: 0,
     shieldActive: false,
     shieldEndTime: 0,
-    lastAbilityUnlockScore: 0
+    lastAbilityUnlockScore: 0,
+    score: 0
   });
 
   const gameLoop = useCallback(() => {
@@ -289,6 +322,9 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     // Update distance and check for mode changes
     gameState.distance += gameState.gameSpeed * 0.1;
     setDistance(Math.floor(gameState.distance));
+    
+    // Sync gameState.score with score state
+    gameState.score = score;
     
     // Check for theme changes based on score
     updateTheme(gameState, score);
@@ -664,7 +700,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     });
 
     // Draw player
-    drawPlayer(ctx, player, gameState);
+    drawPlayer(ctx, player);
 
     // Draw particles
     drawParticles(ctx, gameState.particles);
@@ -837,7 +873,6 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   
   // Tema özel efektleri
   const drawThemeSpecificEffects = (ctx: CanvasRenderingContext2D, offset: number, gameState: GameState) => {
-    const theme = THEMES[gameState.currentTheme];
     
     switch (gameState.currentTheme) {
       case 'forest':
@@ -920,7 +955,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     ctx.shadowBlur = 0;
   };
 
-  const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player, gameState: GameState) => {
+  const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
     ctx.save();
     
     // Adjust size for mini mode
@@ -1271,8 +1306,8 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         break;
         
       case 'saw':
-        const centerX = obstacle.x + obstacle.width/2;
-        const centerY = obstacle.y + obstacle.height/2;
+        const sawCenterX = obstacle.x + obstacle.width/2;
+        const sawCenterY = obstacle.y + obstacle.height/2;
         const radius = obstacle.width/2;
         
         // Gölge çiz
@@ -1280,7 +1315,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         ctx.globalAlpha = shadowOpacity;
         ctx.fillStyle = '#000000';
         ctx.beginPath();
-        ctx.arc(centerX + shadowOffset, centerY + shadowOffset, radius, 0, Math.PI * 2);
+        ctx.arc(sawCenterX + shadowOffset, sawCenterY + shadowOffset, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         
@@ -1288,7 +1323,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         const sawDepth = 3;
         ctx.fillStyle = '#cc0000'; // Koyu kırmızı kenar
         ctx.beginPath();
-        ctx.arc(centerX + sawDepth, centerY + sawDepth, radius, 0, Math.PI * 2);
+        ctx.arc(sawCenterX + sawDepth, sawCenterY + sawDepth, radius, 0, Math.PI * 2);
         ctx.fill();
         
         // Ana saw
@@ -1300,16 +1335,16 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         ctx.beginPath();
         for (let i = 0; i < 8; i++) {
           const angle = (i * Math.PI * 2) / 8;
-          const x = centerX + Math.cos(angle) * radius;
-          const y = centerY + Math.sin(angle) * radius;
+          const x = sawCenterX + Math.cos(angle) * radius;
+          const y = sawCenterY + Math.sin(angle) * radius;
           
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
           
           // Teeth
           const toothAngle = angle + Math.PI / 8;
-          const toothX = centerX + Math.cos(toothAngle) * (radius * 1.3);
-          const toothY = centerY + Math.sin(toothAngle) * (radius * 1.3);
+          const toothX = sawCenterX + Math.cos(toothAngle) * (radius * 1.3);
+          const toothY = sawCenterY + Math.sin(toothAngle) * (radius * 1.3);
           ctx.lineTo(toothX, toothY);
         }
         ctx.closePath();
@@ -1357,9 +1392,9 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         ctx.restore();
         
         // 3D kenar efekti
-        const floorDepth = 4;
+        const barrierDepth = 4;
         ctx.fillStyle = '#cc4400'; // Koyu turuncu kenar
-        ctx.fillRect(obstacle.x + floorDepth, obstacle.y + floorDepth, obstacle.width, obstacle.height);
+        ctx.fillRect(obstacle.x + barrierDepth, obstacle.y + barrierDepth, obstacle.width, obstacle.height);
         
         // Ana barrier
         ctx.fillStyle = '#ff6600';
@@ -1439,9 +1474,9 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         ctx.restore();
         
         // 3D kenar efekti
-        const floorDepth = 2;
+        const slidingFloorDepth = 2;
         ctx.fillStyle = '#cc6600'; // Koyu turuncu kenar
-        ctx.fillRect(obstacle.x + floorDepth, obstacle.y + floorDepth, obstacle.width, obstacle.height);
+        ctx.fillRect(obstacle.x + slidingFloorDepth, obstacle.y + slidingFloorDepth, obstacle.width, obstacle.height);
         
         // Ana zemin
         const floorGradient = ctx.createLinearGradient(obstacle.x, obstacle.y, obstacle.x + obstacle.width, obstacle.y + obstacle.height);
@@ -1683,7 +1718,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         break;
         
       case 'sliding_floor':
-        let floorY = GAME_HEIGHT - GROUND_HEIGHT;
+        const floorY = GAME_HEIGHT - GROUND_HEIGHT;
         let floorWidth = 120;
         
         // Adjust for different modes
@@ -1875,35 +1910,9 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     }
   };
 
-  const createExplosionParticles = (gameState: GameState, x: number, y: number) => {
-    const theme = THEMES[gameState.currentTheme];
-    for (let i = 0; i < 15; i++) {
-      gameState.particles.push({
-        x: x,
-        y: y,
-        velocityX: (Math.random() - 0.5) * 10,
-        velocityY: (Math.random() - 0.5) * 10,
-        size: Math.random() * 5 + 2,
-        color: Math.random() > 0.5 ? theme.particleColors.explosion : theme.particleColors.jump,
-        life: 1
-      });
-    }
-  };
 
-  const createRocketParticles = (gameState: GameState, x: number, y: number) => {
-    const theme = THEMES[gameState.currentTheme];
-    for (let i = 0; i < 3; i++) {
-      gameState.particles.push({
-        x: x - 10 + Math.random() * 20,
-        y: y + 5,
-        velocityX: (Math.random() - 0.5) * 2,
-        velocityY: Math.random() * 2 + 1,
-        size: Math.random() * 4 + 2,
-        color: Math.random() > 0.5 ? theme.particleColors.rocket : '#ffffff',
-        life: 1
-      });
-    }
-  };
+
+
 
   const updateParticles = (gameState: GameState) => {
     gameState.particles.forEach((particle: Particle, index: number) => {
@@ -2042,7 +2051,8 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       dashCooldown: 0,
       shieldActive: false,
       shieldEndTime: 0,
-      lastAbilityUnlockScore: 0
+      lastAbilityUnlockScore: 0,
+      score: 0
     };
 
     if (gameLoopRef.current) {
@@ -2219,7 +2229,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
 }
 
 // Dynamic speed change system
-function checkDynamicSpeedChange(gameState: any, score: number) {
+function checkDynamicSpeedChange(gameState: GameState, score: number) {
   const currentTime = Date.now();
   
   // Check if speed boost has ended
