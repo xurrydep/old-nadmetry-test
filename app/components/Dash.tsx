@@ -9,8 +9,9 @@ interface Player {
   velocityY: number;
   onGround: boolean;
   rotation: number;
-  mode: 'normal' | 'rocket';
+  mode: 'normal' | 'rocket' | 'speed' | 'gravity' | 'mini';
   rocketFuel: number;
+  doubleJumpAvailable: boolean;
 }
 
 interface Obstacle {
@@ -20,6 +21,15 @@ interface Obstacle {
   height: number;
   type: 'spike' | 'block' | 'saw' | 'platform' | 'stairs' | 'ceiling_barrier' | 'floor_barrier';
   passed: boolean;
+}
+
+interface PowerUp {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: 'double_jump' | 'speed_mode' | 'gravity_mode' | 'mini_mode';
+  collected: boolean;
 }
 
 interface Particle {
@@ -35,6 +45,7 @@ interface Particle {
 interface GameState {
   player: Player;
   obstacles: Obstacle[];
+  powerUps: PowerUp[];
   particles: Particle[];
   camera: { x: number };
   keys: { space: boolean; up: boolean; w: boolean };
@@ -76,9 +87,11 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       onGround: true,
       rotation: 0,
       mode: 'normal' as 'normal' | 'rocket',
-      rocketFuel: 100
+      rocketFuel: 100,
+      doubleJumpAvailable: false
     } as Player,
     obstacles: [] as Obstacle[],
+    powerUps: [] as PowerUp[],
     particles: [] as Particle[],
     camera: { x: 0 },
     keys: { space: false, up: false, w: false },
@@ -119,16 +132,27 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       player.rocketFuel = 100;
     }
     
-    if (player.mode === 'normal') {
-      // Normal mode physics
-      if ((gameState.keys.space || gameState.keys.up) && player.onGround) {
-        player.velocityY = -JUMP_FORCE;
-        player.onGround = false;
-        createJumpParticles(gameState, player.x, player.y + player.height);
+    if (player.mode === 'normal' || player.mode === 'speed' || player.mode === 'mini') {
+      // Normal/Speed/Mini mode physics
+      const jumpForce = player.mode === 'speed' ? JUMP_FORCE * 1.3 : JUMP_FORCE;
+      const gravity = player.mode === 'speed' ? GRAVITY * 1.2 : GRAVITY;
+      
+      if ((gameState.keys.space || gameState.keys.up)) {
+        if (player.onGround) {
+          // First jump
+          player.velocityY = -jumpForce;
+          player.onGround = false;
+          createJumpParticles(gameState, player.x, player.y + player.height);
+        } else if (player.doubleJumpAvailable && !player.onGround) {
+          // Double jump
+          player.velocityY = -jumpForce * 0.8;
+          player.doubleJumpAvailable = false;
+          createJumpParticles(gameState, player.x, player.y + player.height);
+        }
       }
 
       // Apply gravity
-      player.velocityY += GRAVITY;
+      player.velocityY += gravity;
       player.y += player.velocityY;
 
       // Ground collision
@@ -140,7 +164,40 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         player.rotation = 0;
       } else {
         // Rotate player while in air
-        player.rotation += 8;
+        const rotationSpeed = player.mode === 'speed' ? 12 : 8;
+        player.rotation += rotationSpeed;
+      }
+    } else if (player.mode === 'gravity') {
+      // Gravity mode physics (inverted)
+      if ((gameState.keys.space || gameState.keys.up)) {
+        if (player.onGround) {
+          // Jump down in gravity mode
+          player.velocityY = JUMP_FORCE;
+          player.onGround = false;
+          createJumpParticles(gameState, player.x, player.y);
+        }
+      }
+
+      // Apply inverted gravity
+      player.velocityY -= GRAVITY;
+      player.y += player.velocityY;
+
+      // Ceiling collision in gravity mode
+      if (player.y <= 50) {
+        player.y = 50;
+        player.velocityY = 0;
+        player.onGround = true;
+        player.rotation = 180;
+      } else {
+        // Rotate player while in air (inverted)
+        player.rotation -= 8;
+      }
+      
+      // Ground collision in gravity mode (should not land on ground)
+      const groundY = GAME_HEIGHT - GROUND_HEIGHT - player.height;
+      if (player.y >= groundY) {
+        player.y = groundY;
+        player.velocityY = 0;
       }
     } else {
       // Rocket mode physics
@@ -159,6 +216,13 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       // Rocket fuel regeneration when not using
       if (!(gameState.keys.space || gameState.keys.up || gameState.keys.w) && player.rocketFuel < 100) {
         player.rocketFuel += 0.5;
+      }
+      
+      // Check if rocket fuel is depleted
+      if (player.rocketFuel <= 0) {
+        player.mode = 'normal';
+        gameState.rocketModeActive = false;
+        player.rocketFuel = 0;
       }
       
       // Ceiling collision
@@ -184,6 +248,11 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     if (Math.random() < OBSTACLE_SPAWN_RATE) {
       spawnObstacle(gameState);
     }
+    
+    // Spawn power-ups (rare)
+    if (Math.random() < 0.003) { // Much rarer than obstacles
+      spawnPowerUp(gameState);
+    }
 
     // Update obstacles
     gameState.obstacles.forEach((obstacle, index) => {
@@ -196,17 +265,58 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
 
       // Check collision
       if (checkCollision(player, obstacle)) {
-        gameState.isRunning = false;
-        setGameOver(true);
-        setGameStarted(false);
-        createExplosionParticles(gameState, player.x + player.width/2, player.y + player.height/2);
-        return;
+        if (obstacle.type === 'stairs') {
+          // Platform behavior for stairs - player lands on top
+          player.y = obstacle.y - player.height;
+          player.velocityY = 0;
+          player.onGround = true;
+          player.rotation = 0;
+        } else {
+          // Normal collision - game over
+          gameState.isRunning = false;
+          setGameOver(true);
+          setGameStarted(false);
+          createExplosionParticles(gameState, player.x + player.width/2, player.y + player.height/2);
+          return;
+        }
       }
 
       // Score for passing obstacles
       if (!obstacle.passed && obstacle.x + obstacle.width < player.x) {
         obstacle.passed = true;
         setScore(prev => prev + 10);
+      }
+    });
+    
+    // Update power-ups
+    gameState.powerUps.forEach((powerUp, index) => {
+      powerUp.x -= gameState.gameSpeed;
+      
+      // Remove off-screen power-ups
+      if (powerUp.x + powerUp.width < -100) {
+        gameState.powerUps.splice(index, 1);
+      }
+      
+      // Check power-up collection
+      if (checkPowerUpCollision(player, powerUp) && !powerUp.collected) {
+        powerUp.collected = true;
+        if (powerUp.type === 'double_jump') {
+          player.doubleJumpAvailable = true;
+        } else if (powerUp.type === 'speed_mode') {
+          player.mode = 'speed';
+          gameState.rocketModeActive = false;
+        } else if (powerUp.type === 'gravity_mode') {
+          player.mode = 'gravity';
+          gameState.rocketModeActive = false;
+          player.onGround = false; // Start in air for gravity mode
+        } else if (powerUp.type === 'mini_mode') {
+          player.mode = 'mini';
+          gameState.rocketModeActive = false;
+          // Adjust player size for mini mode
+          player.width = PLAYER_SIZE * 0.6;
+          player.height = PLAYER_SIZE * 0.6;
+        }
+        gameState.powerUps.splice(index, 1);
       }
     });
 
@@ -219,6 +329,11 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     // Draw obstacles
     gameState.obstacles.forEach(obstacle => {
       drawObstacle(ctx, obstacle);
+    });
+    
+    // Draw power-ups
+    gameState.powerUps.forEach(powerUp => {
+      drawPowerUp(ctx, powerUp);
     });
 
     // Draw player
@@ -304,6 +419,10 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
     ctx.save();
     
+    // Adjust size for mini mode
+    const drawWidth = player.mode === 'mini' ? player.width * 0.6 : player.width;
+    const drawHeight = player.mode === 'mini' ? player.height * 0.6 : player.height;
+    
     // Move to player center for rotation
     ctx.translate(player.x + player.width/2, player.y + player.height/2);
     ctx.rotate((player.rotation * Math.PI) / 180);
@@ -313,11 +432,60 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       ctx.shadowColor = '#ffff00';
       ctx.shadowBlur = 15;
       ctx.fillStyle = '#ffff00';
-      ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
       
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
-      ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
+      ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+    } else if (player.mode === 'speed') {
+      // Speed mode - red square with speed lines
+      ctx.shadowColor = '#ff0044';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = '#ff0044';
+      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+      
+      // Speed lines
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-drawWidth/2 - 10, -drawHeight/4);
+      ctx.lineTo(-drawWidth/2 - 5, -drawHeight/4);
+      ctx.moveTo(-drawWidth/2 - 10, 0);
+      ctx.lineTo(-drawWidth/2 - 5, 0);
+      ctx.moveTo(-drawWidth/2 - 10, drawHeight/4);
+      ctx.lineTo(-drawWidth/2 - 5, drawHeight/4);
+      ctx.stroke();
+      
+      ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+    } else if (player.mode === 'gravity') {
+      // Gravity mode - purple square with gravity symbol
+      ctx.shadowColor = '#aa00ff';
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = '#aa00ff';
+      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+      
+      // Gravity symbol (upside down triangle)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(0, -drawHeight/4);
+      ctx.lineTo(-drawWidth/4, drawHeight/4);
+      ctx.lineTo(drawWidth/4, drawHeight/4);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+    } else if (player.mode === 'mini') {
+      // Mini mode - green small square
+      ctx.shadowColor = '#00ff44';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = '#00ff44';
+      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
     } else {
       // Rocket mode - blue rocket shape
       ctx.shadowColor = '#00aaff';
@@ -326,25 +494,25 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       // Rocket body
       ctx.beginPath();
-      ctx.moveTo(-player.width/2, player.height/2);
-      ctx.lineTo(player.width/2, player.height/2);
-      ctx.lineTo(player.width/3, -player.height/2);
-      ctx.lineTo(-player.width/3, -player.height/2);
+      ctx.moveTo(-drawWidth/2, drawHeight/2);
+      ctx.lineTo(drawWidth/2, drawHeight/2);
+      ctx.lineTo(drawWidth/3, -drawHeight/2);
+      ctx.lineTo(-drawWidth/3, -drawHeight/2);
       ctx.closePath();
       ctx.fill();
       
       // Rocket fins
       ctx.fillStyle = '#0088cc';
-      ctx.fillRect(-player.width/2 - 5, player.height/4, 5, player.height/4);
-      ctx.fillRect(player.width/2, player.height/4, 5, player.height/4);
+      ctx.fillRect(-drawWidth/2 - 5, drawHeight/4, 5, drawHeight/4);
+      ctx.fillRect(drawWidth/2, drawHeight/4, 5, drawHeight/4);
       
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(-player.width/2, player.height/2);
-      ctx.lineTo(player.width/2, player.height/2);
-      ctx.lineTo(player.width/3, -player.height/2);
-      ctx.lineTo(-player.width/3, -player.height/2);
+      ctx.moveTo(-drawWidth/2, drawHeight/2);
+      ctx.lineTo(drawWidth/2, drawHeight/2);
+      ctx.lineTo(drawWidth/3, -drawHeight/2);
+      ctx.lineTo(-drawWidth/3, -drawHeight/2);
       ctx.closePath();
       ctx.stroke();
     }
@@ -562,12 +730,133 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   };
 
   const checkCollision = (player: Player, obstacle: Obstacle): boolean => {
+    // For stairs, only check collision from above (platform behavior)
+    if (obstacle.type === 'stairs') {
+      return (
+        player.x < obstacle.x + obstacle.width &&
+        player.x + player.width > obstacle.x &&
+        player.y + player.height > obstacle.y &&
+        player.y + player.height < obstacle.y + 20 && // Only top surface collision
+        player.velocityY >= 0 // Only when falling down
+      );
+    }
+    
+    // Normal collision for other obstacles
     return (
       player.x < obstacle.x + obstacle.width &&
       player.x + player.width > obstacle.x &&
       player.y < obstacle.y + obstacle.height &&
       player.y + player.height > obstacle.y
     );
+  };
+  
+  const spawnPowerUp = (gameState: GameState) => {
+    const types: ('double_jump' | 'speed_mode' | 'gravity_mode' | 'mini_mode')[] = [
+      'double_jump', 'speed_mode', 'gravity_mode', 'mini_mode'
+    ];
+    
+    const type = types[Math.floor(Math.random() * types.length)];
+    
+    const powerUp: PowerUp = {
+      x: GAME_WIDTH + 50,
+      y: GAME_HEIGHT - GROUND_HEIGHT - 100,
+      width: 25,
+      height: 25,
+      type: type,
+      collected: false
+    };
+    
+    gameState.powerUps.push(powerUp);
+  };
+  
+  const checkPowerUpCollision = (player: Player, powerUp: PowerUp): boolean => {
+    return (
+      player.x < powerUp.x + powerUp.width &&
+      player.x + player.width > powerUp.x &&
+      player.y < powerUp.y + powerUp.height &&
+      player.y + player.height > powerUp.y
+    );
+  };
+  
+  const drawPowerUp = (ctx: CanvasRenderingContext2D, powerUp: PowerUp) => {
+    ctx.save();
+    
+    if (powerUp.type === 'double_jump') {
+      // Draw glowing double jump icon
+      ctx.shadowColor = '#00ff88';
+      ctx.shadowBlur = 15;
+      
+      // Outer glow
+      ctx.fillStyle = '#00ff88';
+      ctx.fillRect(powerUp.x - 2, powerUp.y - 2, powerUp.width + 4, powerUp.height + 4);
+      
+      // Inner core
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(powerUp.x + 5, powerUp.y + 5, powerUp.width - 10, powerUp.height - 10);
+      
+      // Double arrow symbol
+      ctx.fillStyle = '#00ff88';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('↑↑', powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2 + 5);
+    } else if (powerUp.type === 'speed_mode') {
+      // Draw speed mode power-up
+      ctx.shadowColor = '#ff0044';
+      ctx.shadowBlur = 15;
+      
+      // Outer glow
+      ctx.fillStyle = '#ff0044';
+      ctx.fillRect(powerUp.x - 2, powerUp.y - 2, powerUp.width + 4, powerUp.height + 4);
+      
+      // Inner core
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(powerUp.x + 5, powerUp.y + 5, powerUp.width - 10, powerUp.height - 10);
+      
+      // Speed symbol
+      ctx.fillStyle = '#ff0044';
+      ctx.font = '14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('>>>', powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2 + 4);
+    } else if (powerUp.type === 'gravity_mode') {
+      // Draw gravity mode power-up
+      ctx.shadowColor = '#aa00ff';
+      ctx.shadowBlur = 15;
+      
+      // Outer glow
+      ctx.fillStyle = '#aa00ff';
+      ctx.fillRect(powerUp.x - 2, powerUp.y - 2, powerUp.width + 4, powerUp.height + 4);
+      
+      // Inner core
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(powerUp.x + 5, powerUp.y + 5, powerUp.width - 10, powerUp.height - 10);
+      
+      // Gravity symbol (upside down triangle)
+      ctx.fillStyle = '#aa00ff';
+      ctx.beginPath();
+      ctx.moveTo(powerUp.x + powerUp.width/2, powerUp.y + 8);
+      ctx.lineTo(powerUp.x + 8, powerUp.y + powerUp.height - 8);
+      ctx.lineTo(powerUp.x + powerUp.width - 8, powerUp.y + powerUp.height - 8);
+      ctx.closePath();
+      ctx.fill();
+    } else if (powerUp.type === 'mini_mode') {
+      // Draw mini mode power-up
+      ctx.shadowColor = '#00ff44';
+      ctx.shadowBlur = 15;
+      
+      // Outer glow
+      ctx.fillStyle = '#00ff44';
+      ctx.fillRect(powerUp.x - 2, powerUp.y - 2, powerUp.width + 4, powerUp.height + 4);
+      
+      // Inner core
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(powerUp.x + 5, powerUp.y + 5, powerUp.width - 10, powerUp.height - 10);
+      
+      // Mini symbol (small square)
+      ctx.fillStyle = '#00ff44';
+      ctx.fillRect(powerUp.x + 10, powerUp.y + 10, 5, 5);
+    }
+    
+    ctx.restore();
   };
 
   const createJumpParticles = (gameState: GameState, x: number, y: number) => {
@@ -658,10 +947,12 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         onGround: true,
         rotation: 0,
         mode: 'normal',
-        rocketFuel: 100
+        rocketFuel: 100,
+        doubleJumpAvailable: false
       },
       obstacles: [],
-      particles: [],
+      powerUps: [],
+      particles: []
       camera: { x: 0 },
       keys: { space: false, up: false, w: false },
       isRunning: true,
