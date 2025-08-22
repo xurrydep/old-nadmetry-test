@@ -204,7 +204,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       if (gameState.keys.space || gameState.keys.up || gameState.keys.w) {
         if (player.rocketFuel > 0) {
           player.velocityY = -6; // Hover force
-          player.rocketFuel -= 2;
+          player.rocketFuel -= 5; // Increased fuel consumption
           createRocketParticles(gameState, player.x, player.y + player.height);
         }
       } else {
@@ -213,9 +213,9 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       player.y += player.velocityY;
       
-      // Rocket fuel regeneration when not using
+      // Rocket fuel regeneration when not using (slower)
       if (!(gameState.keys.space || gameState.keys.up || gameState.keys.w) && player.rocketFuel < 100) {
-        player.rocketFuel += 0.5;
+        player.rocketFuel += 0.2; // Slower regeneration
       }
       
       // Check if rocket fuel is depleted
@@ -244,8 +244,17 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     // Move camera with player
     gameState.camera.x += gameState.gameSpeed;
 
-    // Spawn obstacles
-    if (Math.random() < OBSTACLE_SPAWN_RATE) {
+    // Spawn obstacles with mode-specific rates
+    let spawnRate = OBSTACLE_SPAWN_RATE;
+    if (gameState.player.mode === 'speed') {
+      spawnRate = OBSTACLE_SPAWN_RATE * 1.5; // More frequent obstacles in speed mode
+    } else if (gameState.player.mode === 'gravity') {
+      spawnRate = OBSTACLE_SPAWN_RATE * 1.3; // More frequent obstacles in gravity mode
+    } else if (gameState.player.mode === 'mini') {
+      spawnRate = OBSTACLE_SPAWN_RATE * 1.8; // Much more frequent obstacles in mini mode
+    }
+    
+    if (Math.random() < spawnRate) {
       spawnObstacle(gameState);
     }
     
@@ -643,10 +652,20 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
 
   const spawnObstacle = (gameState: GameState) => {
     let types: ('spike' | 'block' | 'saw' | 'stairs' | 'ceiling_barrier' | 'floor_barrier')[];
+    const player = gameState.player;
     
     if (gameState.rocketModeActive) {
       // In rocket mode, spawn ceiling and floor barriers
       types = ['ceiling_barrier', 'floor_barrier', 'spike', 'block'];
+    } else if (player.mode === 'speed') {
+      // Speed mode: More frequent and taller obstacles
+      types = ['spike', 'block', 'saw', 'stairs'];
+    } else if (player.mode === 'gravity') {
+      // Gravity mode: Ceiling obstacles and inverted challenges
+      types = ['ceiling_barrier', 'spike', 'block'];
+    } else if (player.mode === 'mini') {
+      // Mini mode: Lower obstacles and tight spaces
+      types = ['spike', 'block', 'saw'];
     } else if (gameState.distance > 200) {
       // After 200m, add stairs
       types = ['spike', 'block', 'saw', 'stairs'];
@@ -660,33 +679,73 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     
     switch (type) {
       case 'spike':
+        let spikeHeight = 40;
+        let spikeY = GAME_HEIGHT - GROUND_HEIGHT - spikeHeight;
+        
+        // Adjust for different modes
+        if (player.mode === 'speed') {
+          spikeHeight = 60; // Taller spikes for speed mode
+          spikeY = GAME_HEIGHT - GROUND_HEIGHT - spikeHeight;
+        } else if (player.mode === 'mini') {
+          spikeHeight = 25; // Shorter spikes for mini mode
+          spikeY = GAME_HEIGHT - GROUND_HEIGHT - spikeHeight;
+        } else if (player.mode === 'gravity') {
+          spikeY = 50; // Ceiling spikes for gravity mode
+        }
+        
         obstacle = {
           x: GAME_WIDTH + 50,
-          y: GAME_HEIGHT - GROUND_HEIGHT - 40,
+          y: spikeY,
           width: 30,
-          height: 40,
+          height: spikeHeight,
           type: 'spike',
           passed: false
         };
         break;
         
       case 'block':
+        let blockHeight = 50;
+        let blockY = GAME_HEIGHT - GROUND_HEIGHT - blockHeight;
+        
+        // Adjust for different modes
+        if (player.mode === 'speed') {
+          blockHeight = 70; // Taller blocks for speed mode
+          blockY = GAME_HEIGHT - GROUND_HEIGHT - blockHeight;
+        } else if (player.mode === 'mini') {
+          blockHeight = 35; // Shorter blocks for mini mode
+          blockY = GAME_HEIGHT - GROUND_HEIGHT - blockHeight;
+        } else if (player.mode === 'gravity') {
+          blockY = 50; // Ceiling blocks for gravity mode
+        }
+        
         obstacle = {
           x: GAME_WIDTH + 50,
-          y: GAME_HEIGHT - GROUND_HEIGHT - 50,
+          y: blockY,
           width: 40,
-          height: 50,
+          height: blockHeight,
           type: 'block',
           passed: false
         };
         break;
         
       case 'saw':
+        let sawSize = 50;
+        let sawY = GAME_HEIGHT - GROUND_HEIGHT - sawSize;
+        
+        // Adjust for different modes
+        if (player.mode === 'speed') {
+          sawSize = 65; // Bigger saws for speed mode
+          sawY = GAME_HEIGHT - GROUND_HEIGHT - sawSize;
+        } else if (player.mode === 'mini') {
+          sawSize = 35; // Smaller saws for mini mode
+          sawY = GAME_HEIGHT - GROUND_HEIGHT - sawSize;
+        }
+        
         obstacle = {
           x: GAME_WIDTH + 50,
-          y: GAME_HEIGHT - GROUND_HEIGHT - 60,
-          width: 50,
-          height: 50,
+          y: sawY,
+          width: sawSize,
+          height: sawSize,
           type: 'saw',
           passed: false
         };
