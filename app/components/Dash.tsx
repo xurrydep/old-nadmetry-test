@@ -213,16 +213,29 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       player.y += player.velocityY;
       
-      // Rocket fuel regeneration when not using (slower)
-      if (!(gameState.keys.space || gameState.keys.up || gameState.keys.w) && player.rocketFuel < 100) {
-        player.rocketFuel += 0.2; // Slower regeneration
-      }
-      
-      // Check if rocket fuel is depleted
+      // Check if rocket fuel is depleted - trigger evolution
       if (player.rocketFuel <= 0) {
-        player.mode = 'normal';
+        // Randomly evolve to a new mode when fuel runs out
+        const evolutionModes = ['speed', 'gravity', 'mini'];
+        const newMode = evolutionModes[Math.floor(Math.random() * evolutionModes.length)];
+        player.mode = newMode as 'speed' | 'gravity' | 'mini';
         gameState.rocketModeActive = false;
         player.rocketFuel = 0;
+        
+        // Adjust player size for mini mode
+        if (newMode === 'mini') {
+          player.width = PLAYER_SIZE * 0.6;
+          player.height = PLAYER_SIZE * 0.6;
+        } else {
+          // Reset size for other modes
+          player.width = PLAYER_SIZE;
+          player.height = PLAYER_SIZE;
+        }
+        
+        // Special setup for gravity mode
+        if (newMode === 'gravity') {
+          player.onGround = false;
+        }
       }
       
       // Ceiling collision
@@ -666,12 +679,9 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     } else if (player.mode === 'mini') {
       // Mini mode: Lower obstacles and tight spaces
       types = ['spike', 'block', 'saw'];
-    } else if (gameState.distance > 200) {
-      // After 200m, add stairs
-      types = ['spike', 'block', 'saw', 'stairs'];
     } else {
-      // Normal obstacles
-      types = ['spike', 'block', 'saw'];
+      // Normal obstacles (removed 200m stairs requirement)
+      types = ['spike', 'block', 'saw', 'stairs'];
     }
     
     const type = types[Math.floor(Math.random() * types.length)];
