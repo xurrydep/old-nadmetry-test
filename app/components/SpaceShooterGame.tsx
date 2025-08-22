@@ -16,6 +16,7 @@ interface Player extends GameObject {
 
 interface Obstacle extends GameObject {
   passed: boolean; // Engelin geçilip geçilmediğini kontrol etmek için
+  type: 'square' | 'circle' | 'triangle'; // Engel tipi
 }
 
 const GAME_WIDTH = 800;
@@ -173,7 +174,7 @@ export default function GeometryDashGame() {
         height: 30,
         speed: OBSTACLE_SPEED,
         passed: false,
-        type: Math.random() > 0.5 ? 'square' : 'circle', // Random obstacle type
+        type: Math.random() < 0.33 ? 'square' : Math.random() < 0.66 ? 'circle' : 'triangle', // Random obstacle type
       });
     }
 
