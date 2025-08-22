@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import SpaceShooterGame from './components/SpaceShooterGame';
+import SpaceShooterGame from './components/Dash';
 import AuthComponent from './components/AuthComponent';
 import ScoreDebugger from './components/ScoreDebugger';
 
