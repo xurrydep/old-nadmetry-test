@@ -40,7 +40,7 @@ interface SpaceShooterGameProps {
   playerAddress: string;
 }
 
-export default function SpaceShooterGame({ playerAddress: _playerAddress }: SpaceShooterGameProps) {
+export default function SpaceShooterGame({}: SpaceShooterGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -54,6 +54,95 @@ export default function SpaceShooterGame({ playerAddress: _playerAddress }: Spac
     keys: { space: false },
     isRunning: false
   });
+
+  const gameLoop = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const gameState = gameStateRef.current;
+
+    // Arka planı çiz
+    drawBackground(ctx);
+
+    // Move player
+    if (gameState.keys.space && !gameState.player.jumping) {
+      gameState.player.velocityY = -JUMP_STRENGTH; // Jump
+      gameState.player.jumping = true;
+    }
+
+    gameState.player.y += gameState.player.velocityY;
+    gameState.player.velocityY += GRAVITY; // Apply gravity
+
+    // Prevent player from falling through the ground
+    if (gameState.player.y >= GAME_HEIGHT - gameState.player.height) {
+      gameState.player.y = GAME_HEIGHT - gameState.player.height;
+      gameState.player.velocityY = 0;
+      gameState.player.jumping = false;
+    }
+
+    // Spawn obstacles
+    if (Math.random() < OBSTACLE_SPAWN_RATE) {
+      gameState.obstacles.push({
+        x: GAME_WIDTH,
+        y: GAME_HEIGHT - 50,
+        width: 30,
+        height: 30,
+        speed: OBSTACLE_SPEED,
+        passed: false,
+        type: Math.random() < 0.33 ? 'square' : Math.random() < 0.66 ? 'circle' : 'triangle', // Random obstacle type
+      });
+    }
+
+    // Move obstacles
+    gameState.obstacles.forEach((obstacle, obstacleIndex) => {
+      obstacle.x -= obstacle.speed;
+
+      // If obstacle goes off screen, remove it
+      if (obstacle.x + obstacle.width < 0) {
+        gameState.obstacles.splice(obstacleIndex, 1);
+      }
+
+      // Check for collision
+      if (
+        gameState.player.x < obstacle.x + obstacle.width &&
+        gameState.player.x + gameState.player.width > obstacle.x &&
+        gameState.player.y < obstacle.y + obstacle.height &&
+        gameState.player.y + gameState.player.height > obstacle.y
+      ) {
+        // Game over
+        gameState.isRunning = false;
+        setGameOver(true);
+        setGameStarted(false);
+        return;
+      }
+
+      // Check if player passed obstacle
+      if (!obstacle.passed && obstacle.x + obstacle.width < gameState.player.x) {
+        obstacle.passed = true;
+        setScore(prev => prev + 1);
+      }
+    });
+
+    // Draw player
+    ctx.fillStyle = '#00ff00';
+    ctx.fillRect(gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.height);
+
+    // Draw obstacles
+    gameState.obstacles.forEach(obstacle => {
+      drawObstacle(ctx, obstacle);
+    });
+
+    // Draw particles
+    drawParticles(ctx);
+
+    // Continue game loop
+    if (gameState.isRunning) {
+      gameLoopRef.current = requestAnimationFrame(gameLoop);
+    }
+  }, []);
 
   const startGame = useCallback(() => {
     setGameStarted(true);
@@ -72,7 +161,7 @@ export default function SpaceShooterGame({ playerAddress: _playerAddress }: Spac
       cancelAnimationFrame(gameLoopRef.current);
     }
     gameLoop();
-  }, []);
+  }, [gameLoop]);
 
   const drawBackground = (ctx: CanvasRenderingContext2D) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
@@ -132,93 +221,7 @@ export default function SpaceShooterGame({ playerAddress: _playerAddress }: Spac
     });
   };
 
-  const gameLoop = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const gameState = gameStateRef.current;
-
-    // Arka planı çiz
-    drawBackground(ctx);
-
-    // Move player
-    if (gameState.keys.space && !gameState.player.jumping) {
-      gameState.player.velocityY = -JUMP_STRENGTH; // Jump
-      gameState.player.jumping = true;
-    }
-
-    gameState.player.y += gameState.player.velocityY;
-    gameState.player.velocityY += GRAVITY; // Apply gravity
-
-    // Prevent player from falling through the ground
-    if (gameState.player.y >= GAME_HEIGHT - gameState.player.height) {
-      gameState.player.y = GAME_HEIGHT - gameState.player.height;
-      gameState.player.velocityY = 0;
-      gameState.player.jumping = false;
-    }
-
-    // Spawn obstacles
-    if (Math.random() < OBSTACLE_SPAWN_RATE) {
-      gameState.obstacles.push({
-        x: GAME_WIDTH,
-        y: GAME_HEIGHT - 50,
-        width: 30,
-        height: 30,
-        speed: OBSTACLE_SPEED,
-        passed: false,
-        type: Math.random() < 0.33 ? 'square' : Math.random() < 0.66 ? 'circle' : 'triangle', // Random obstacle type
-      });
-    }
-
-    // Move obstacles
-    gameState.obstacles.forEach((obstacle, obstacleIndex) => {
-      obstacle.x -= obstacle.speed;
-
-      // If obstacle goes off screen, remove it
-      if (obstacle.x + obstacle.width < 0) {
-        gameState.obstacles.splice(obstacleIndex, 1);
-      }
-
-      // Check if player collides with obstacle
-      if (
-        gameState.player.x < obstacle.x + obstacle.width &&
-        gameState.player.x + gameState.player.width > obstacle.x &&
-        gameState.player.y < obstacle.y + obstacle.height &&
-        gameState.player.y + gameState.player.height > obstacle.y
-      ) {
-        gameState.isRunning = false;
-        setGameOver(true);
-        setGameStarted(false);
-        return;
-      }
-
-      // Increase score if player passes an obstacle
-      if (!obstacle.passed && obstacle.x + obstacle.width < gameState.player.x) {
-        obstacle.passed = true;
-        setScore((prev) => prev + 1);
-      }
-    });
-
-    // Draw player (square)
-    ctx.fillStyle = '#00ff00';
-    ctx.fillRect(gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.height);
-
-    // Draw obstacles (random shapes)
-    ctx.fillStyle = '#ff0000';
-    gameState.obstacles.forEach(obstacle => {
-      drawObstacle(ctx, obstacle);
-    });
-
-    // Particle effects
-    drawParticles(ctx);
-
-    if (gameState.isRunning) {
-      gameLoopRef.current = requestAnimationFrame(gameLoop);
-    }
-  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

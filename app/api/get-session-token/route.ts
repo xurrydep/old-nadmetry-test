@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
     // Verify that the message contains the player address and a recent timestamp
     // This should be done by checking the signature against the player's wallet
     // For now, we'll implement a basic check - in production, you'd verify the signature
-    const expectedMessage = `Authenticate for score submission: ${playerAddress}`;
     if (!message.includes(playerAddress)) {
       return NextResponse.json(
         { error: 'Invalid message format' },
