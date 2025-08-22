@@ -9,7 +9,7 @@ interface Player {
   velocityY: number;
   onGround: boolean;
   rotation: number;
-  mode: 'normal' | 'rocket' | 'speed' | 'gravity' | 'mini';
+  mode: 'normal' | 'rocket' | 'gravity' | 'mini';
   rocketFuel: number;
   doubleJumpAvailable: boolean;
 }
@@ -28,7 +28,7 @@ interface PowerUp {
   y: number;
   width: number;
   height: number;
-  type: 'double_jump' | 'speed_mode' | 'gravity_mode' | 'mini_mode';
+  type: 'double_jump' | 'gravity_mode' | 'mini_mode';
   collected: boolean;
 }
 
@@ -132,10 +132,10 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       player.rocketFuel = 100;
     }
     
-    if (player.mode === 'normal' || player.mode === 'speed' || player.mode === 'mini') {
-      // Normal/Speed/Mini mode physics
-      const jumpForce = player.mode === 'speed' ? JUMP_FORCE * 1.3 : JUMP_FORCE;
-      const gravity = player.mode === 'speed' ? GRAVITY * 1.2 : GRAVITY;
+    if (player.mode === 'normal' || player.mode === 'mini') {
+      // Normal/Mini mode physics
+      const jumpForce = JUMP_FORCE;
+      const gravity = GRAVITY;
       
       if ((gameState.keys.space || gameState.keys.up)) {
         if (player.onGround) {
@@ -164,8 +164,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         player.rotation = 0;
       } else {
         // Rotate player while in air
-        const rotationSpeed = player.mode === 'speed' ? 12 : 8;
-        player.rotation += rotationSpeed;
+        player.rotation += 8;
       }
     } else if (player.mode === 'gravity') {
       // Gravity mode physics (inverted)
@@ -215,10 +214,10 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       // Check if rocket fuel is depleted - trigger evolution
       if (player.rocketFuel <= 0) {
-        // Randomly evolve to a new mode when fuel runs out
-        const evolutionModes = ['speed', 'gravity', 'mini'];
+        // Randomly evolve to a new mode when fuel runs out (removed speed mode)
+        const evolutionModes = ['gravity', 'mini'];
         const newMode = evolutionModes[Math.floor(Math.random() * evolutionModes.length)];
-        player.mode = newMode as 'speed' | 'gravity' | 'mini';
+        player.mode = newMode as 'gravity' | 'mini';
         gameState.rocketModeActive = false;
         player.rocketFuel = 0;
         
@@ -259,9 +258,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
 
     // Spawn obstacles with mode-specific rates
     let spawnRate = OBSTACLE_SPAWN_RATE;
-    if (gameState.player.mode === 'speed') {
-      spawnRate = OBSTACLE_SPAWN_RATE * 1.5; // More frequent obstacles in speed mode
-    } else if (gameState.player.mode === 'gravity') {
+    if (gameState.player.mode === 'gravity') {
       spawnRate = OBSTACLE_SPAWN_RATE * 1.3; // More frequent obstacles in gravity mode
     } else if (gameState.player.mode === 'mini') {
       spawnRate = OBSTACLE_SPAWN_RATE * 1.8; // Much more frequent obstacles in mini mode
@@ -324,9 +321,6 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         powerUp.collected = true;
         if (powerUp.type === 'double_jump') {
           player.doubleJumpAvailable = true;
-        } else if (powerUp.type === 'speed_mode') {
-          player.mode = 'speed';
-          gameState.rocketModeActive = false;
         } else if (powerUp.type === 'gravity_mode') {
           player.mode = 'gravity';
           gameState.rocketModeActive = false;
@@ -458,26 +452,6 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
-      ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
-    } else if (player.mode === 'speed') {
-      // Speed mode - red square with speed lines
-      ctx.shadowColor = '#ff0044';
-      ctx.shadowBlur = 20;
-      ctx.fillStyle = '#ff0044';
-      ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
-      
-      // Speed lines
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-drawWidth/2 - 10, -drawHeight/4);
-      ctx.lineTo(-drawWidth/2 - 5, -drawHeight/4);
-      ctx.moveTo(-drawWidth/2 - 10, 0);
-      ctx.lineTo(-drawWidth/2 - 5, 0);
-      ctx.moveTo(-drawWidth/2 - 10, drawHeight/4);
-      ctx.lineTo(-drawWidth/2 - 5, drawHeight/4);
-      ctx.stroke();
-      
       ctx.strokeRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
     } else if (player.mode === 'gravity') {
       // Gravity mode - purple square with gravity symbol
@@ -670,9 +644,6 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     if (gameState.rocketModeActive) {
       // In rocket mode, spawn ceiling and floor barriers
       types = ['ceiling_barrier', 'floor_barrier', 'spike', 'block'];
-    } else if (player.mode === 'speed') {
-      // Speed mode: More frequent and taller obstacles
-      types = ['spike', 'block', 'saw', 'stairs'];
     } else if (player.mode === 'gravity') {
       // Gravity mode: Ceiling obstacles and inverted challenges
       types = ['ceiling_barrier', 'spike', 'block'];
@@ -693,10 +664,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         let spikeY = GAME_HEIGHT - GROUND_HEIGHT - spikeHeight;
         
         // Adjust for different modes
-        if (player.mode === 'speed') {
-          spikeHeight = 60; // Taller spikes for speed mode
-          spikeY = GAME_HEIGHT - GROUND_HEIGHT - spikeHeight;
-        } else if (player.mode === 'mini') {
+        if (player.mode === 'mini') {
           spikeHeight = 25; // Shorter spikes for mini mode
           spikeY = GAME_HEIGHT - GROUND_HEIGHT - spikeHeight;
         } else if (player.mode === 'gravity') {
@@ -718,10 +686,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         let blockY = GAME_HEIGHT - GROUND_HEIGHT - blockHeight;
         
         // Adjust for different modes
-        if (player.mode === 'speed') {
-          blockHeight = 70; // Taller blocks for speed mode
-          blockY = GAME_HEIGHT - GROUND_HEIGHT - blockHeight;
-        } else if (player.mode === 'mini') {
+        if (player.mode === 'mini') {
           blockHeight = 35; // Shorter blocks for mini mode
           blockY = GAME_HEIGHT - GROUND_HEIGHT - blockHeight;
         } else if (player.mode === 'gravity') {
@@ -743,10 +708,7 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         let sawY = GAME_HEIGHT - GROUND_HEIGHT - sawSize;
         
         // Adjust for different modes
-        if (player.mode === 'speed') {
-          sawSize = 65; // Bigger saws for speed mode
-          sawY = GAME_HEIGHT - GROUND_HEIGHT - sawSize;
-        } else if (player.mode === 'mini') {
+        if (player.mode === 'mini') {
           sawSize = 35; // Smaller saws for mini mode
           sawY = GAME_HEIGHT - GROUND_HEIGHT - sawSize;
         }
@@ -820,8 +782,8 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   };
   
   const spawnPowerUp = (gameState: GameState) => {
-    const types: ('double_jump' | 'speed_mode' | 'gravity_mode' | 'mini_mode')[] = [
-      'double_jump', 'speed_mode', 'gravity_mode', 'mini_mode'
+    const types: ('double_jump' | 'gravity_mode' | 'mini_mode')[] = [
+      'double_jump', 'gravity_mode', 'mini_mode'
     ];
     
     const type = types[Math.floor(Math.random() * types.length)];
@@ -868,24 +830,6 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       ctx.font = '16px Arial';
       ctx.textAlign = 'center';
       ctx.fillText('↑↑', powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2 + 5);
-    } else if (powerUp.type === 'speed_mode') {
-      // Draw speed mode power-up
-      ctx.shadowColor = '#ff0044';
-      ctx.shadowBlur = 15;
-      
-      // Outer glow
-      ctx.fillStyle = '#ff0044';
-      ctx.fillRect(powerUp.x - 2, powerUp.y - 2, powerUp.width + 4, powerUp.height + 4);
-      
-      // Inner core
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(powerUp.x + 5, powerUp.y + 5, powerUp.width - 10, powerUp.height - 10);
-      
-      // Speed symbol
-      ctx.fillStyle = '#ff0044';
-      ctx.font = '14px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('>>>', powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2 + 4);
     } else if (powerUp.type === 'gravity_mode') {
       // Draw gravity mode power-up
       ctx.shadowColor = '#aa00ff';
