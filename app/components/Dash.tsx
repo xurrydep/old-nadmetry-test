@@ -9,6 +9,8 @@ interface Player {
   velocityY: number;
   onGround: boolean;
   rotation: number;
+  mode: 'normal' | 'rocket';
+  rocketFuel: number;
 }
 
 interface Obstacle {
@@ -16,7 +18,7 @@ interface Obstacle {
   y: number;
   width: number;
   height: number;
-  type: 'spike' | 'block' | 'saw' | 'platform';
+  type: 'spike' | 'block' | 'saw' | 'platform' | 'stairs' | 'ceiling_barrier' | 'floor_barrier';
   passed: boolean;
 }
 
@@ -35,10 +37,12 @@ interface GameState {
   obstacles: Obstacle[];
   particles: Particle[];
   camera: { x: number };
-  keys: { space: boolean; up: boolean };
+  keys: { space: boolean; up: boolean; w: boolean };
   isRunning: boolean;
   gameSpeed: number;
   backgroundOffset: number;
+  distance: number;
+  rocketModeActive: boolean;
 }
 
 const GAME_WIDTH = 800;
@@ -70,15 +74,19 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
       height: PLAYER_SIZE,
       velocityY: 0,
       onGround: true,
-      rotation: 0
+      rotation: 0,
+      mode: 'normal' as 'normal' | 'rocket',
+      rocketFuel: 100
     } as Player,
     obstacles: [] as Obstacle[],
     particles: [] as Particle[],
     camera: { x: 0 },
-    keys: { space: false, up: false },
+    keys: { space: false, up: false, w: false },
     isRunning: false,
     gameSpeed: GAME_SPEED,
-    backgroundOffset: 0
+    backgroundOffset: 0,
+    distance: 0,
+    rocketModeActive: false
   });
 
   const gameLoop = useCallback(() => {
@@ -97,30 +105,76 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     drawBackground(ctx, gameState.backgroundOffset);
     gameState.backgroundOffset += gameState.gameSpeed * 0.5;
 
+    // Update distance and check for mode changes
+    gameState.distance += gameState.gameSpeed * 0.1;
+    setDistance(Math.floor(gameState.distance));
+    
     // Player physics
     const player = gameState.player;
     
-    // Jump input
-    if ((gameState.keys.space || gameState.keys.up) && player.onGround) {
-      player.velocityY = -JUMP_FORCE;
-      player.onGround = false;
-      createJumpParticles(gameState, player.x, player.y + player.height);
+    // Activate rocket mode after 500m
+    if (gameState.distance > 500 && !gameState.rocketModeActive) {
+      gameState.rocketModeActive = true;
+      player.mode = 'rocket';
+      player.rocketFuel = 100;
     }
+    
+    if (player.mode === 'normal') {
+      // Normal mode physics
+      if ((gameState.keys.space || gameState.keys.up) && player.onGround) {
+        player.velocityY = -JUMP_FORCE;
+        player.onGround = false;
+        createJumpParticles(gameState, player.x, player.y + player.height);
+      }
 
-    // Apply gravity
-    player.velocityY += GRAVITY;
-    player.y += player.velocityY;
+      // Apply gravity
+      player.velocityY += GRAVITY;
+      player.y += player.velocityY;
 
-    // Ground collision
-    const groundY = GAME_HEIGHT - GROUND_HEIGHT - player.height;
-    if (player.y >= groundY) {
-      player.y = groundY;
-      player.velocityY = 0;
-      player.onGround = true;
-      player.rotation = 0;
+      // Ground collision
+      const groundY = GAME_HEIGHT - GROUND_HEIGHT - player.height;
+      if (player.y >= groundY) {
+        player.y = groundY;
+        player.velocityY = 0;
+        player.onGround = true;
+        player.rotation = 0;
+      } else {
+        // Rotate player while in air
+        player.rotation += 8;
+      }
     } else {
-      // Rotate player while in air
-      player.rotation += 8;
+      // Rocket mode physics
+      if (gameState.keys.space || gameState.keys.up || gameState.keys.w) {
+        if (player.rocketFuel > 0) {
+          player.velocityY = -6; // Hover force
+          player.rocketFuel -= 2;
+          createRocketParticles(gameState, player.x, player.y + player.height);
+        }
+      } else {
+        player.velocityY += GRAVITY * 0.5; // Reduced gravity in rocket mode
+      }
+      
+      player.y += player.velocityY;
+      
+      // Rocket fuel regeneration when not using
+      if (!(gameState.keys.space || gameState.keys.up || gameState.keys.w) && player.rocketFuel < 100) {
+        player.rocketFuel += 0.5;
+      }
+      
+      // Ceiling collision
+      if (player.y <= 50) {
+        player.y = 50;
+        player.velocityY = 0;
+      }
+      
+      // Ground collision in rocket mode
+      const groundY = GAME_HEIGHT - GROUND_HEIGHT - player.height;
+      if (player.y >= groundY) {
+        player.y = groundY;
+        player.velocityY = 0;
+      }
+      
+      player.rotation += 2; // Slow rotation in rocket mode
     }
 
     // Move camera with player
@@ -254,18 +308,46 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
     ctx.translate(player.x + player.width/2, player.y + player.height/2);
     ctx.rotate((player.rotation * Math.PI) / 180);
     
-    // Player glow
-    ctx.shadowColor = '#ffff00';
-    ctx.shadowBlur = 15;
-    
-    // Player body
-    ctx.fillStyle = '#ffff00';
-    ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
-    
-    // Player border
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
+    if (player.mode === 'normal') {
+      // Normal mode - yellow square
+      ctx.shadowColor = '#ffff00';
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = '#ffff00';
+      ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
+    } else {
+      // Rocket mode - blue rocket shape
+      ctx.shadowColor = '#00aaff';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = '#00aaff';
+      
+      // Rocket body
+      ctx.beginPath();
+      ctx.moveTo(-player.width/2, player.height/2);
+      ctx.lineTo(player.width/2, player.height/2);
+      ctx.lineTo(player.width/3, -player.height/2);
+      ctx.lineTo(-player.width/3, -player.height/2);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Rocket fins
+      ctx.fillStyle = '#0088cc';
+      ctx.fillRect(-player.width/2 - 5, player.height/4, 5, player.height/4);
+      ctx.fillRect(player.width/2, player.height/4, 5, player.height/4);
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-player.width/2, player.height/2);
+      ctx.lineTo(player.width/2, player.height/2);
+      ctx.lineTo(player.width/3, -player.height/2);
+      ctx.lineTo(-player.width/3, -player.height/2);
+      ctx.closePath();
+      ctx.stroke();
+    }
     
     ctx.shadowBlur = 0;
     ctx.restore();
@@ -327,6 +409,64 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         ctx.closePath();
         ctx.fill();
         break;
+        
+      case 'stairs':
+        ctx.fillStyle = '#00ff88';
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 10;
+        
+        // Draw stairs as steps
+        const stepWidth = obstacle.width / 3;
+        const stepHeight = obstacle.height / 3;
+        
+        for (let i = 0; i < 3; i++) {
+          const stepX = obstacle.x + i * stepWidth;
+          const stepY = obstacle.y + obstacle.height - (i + 1) * stepHeight;
+          ctx.fillRect(stepX, stepY, stepWidth, (i + 1) * stepHeight);
+        }
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+          const stepX = obstacle.x + i * stepWidth;
+          const stepY = obstacle.y + obstacle.height - (i + 1) * stepHeight;
+          ctx.strokeRect(stepX, stepY, stepWidth, (i + 1) * stepHeight);
+        }
+        break;
+        
+      case 'ceiling_barrier':
+        ctx.fillStyle = '#ff6600';
+        ctx.shadowColor = '#ff6600';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        
+        // Add warning stripes
+        ctx.fillStyle = '#ffff00';
+        for (let i = 0; i < obstacle.height; i += 20) {
+          ctx.fillRect(obstacle.x, obstacle.y + i, obstacle.width, 10);
+        }
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        break;
+        
+      case 'floor_barrier':
+        ctx.fillStyle = '#ff6600';
+        ctx.shadowColor = '#ff6600';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        
+        // Add warning stripes
+        ctx.fillStyle = '#ffff00';
+        for (let i = 0; i < obstacle.height; i += 20) {
+          ctx.fillRect(obstacle.x, obstacle.y + i, obstacle.width, 10);
+        }
+        
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        break;
     }
     
     ctx.shadowBlur = 0;
@@ -334,9 +474,20 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   };
 
   const spawnObstacle = (gameState: GameState) => {
-    const types: ('spike' | 'block' | 'saw')[] = ['spike', 'block', 'saw'];
-    const type = types[Math.floor(Math.random() * types.length)];
+    let types: ('spike' | 'block' | 'saw' | 'stairs' | 'ceiling_barrier' | 'floor_barrier')[];
     
+    if (gameState.rocketModeActive) {
+      // In rocket mode, spawn ceiling and floor barriers
+      types = ['ceiling_barrier', 'floor_barrier', 'spike', 'block'];
+    } else if (gameState.distance > 200) {
+      // After 200m, add stairs
+      types = ['spike', 'block', 'saw', 'stairs'];
+    } else {
+      // Normal obstacles
+      types = ['spike', 'block', 'saw'];
+    }
+    
+    const type = types[Math.floor(Math.random() * types.length)];
     let obstacle: Obstacle;
     
     switch (type) {
@@ -369,6 +520,39 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
           width: 50,
           height: 50,
           type: 'saw',
+          passed: false
+        };
+        break;
+        
+      case 'stairs':
+        obstacle = {
+          x: GAME_WIDTH + 50,
+          y: GAME_HEIGHT - GROUND_HEIGHT - 80,
+          width: 60,
+          height: 80,
+          type: 'stairs',
+          passed: false
+        };
+        break;
+        
+      case 'ceiling_barrier':
+        obstacle = {
+          x: GAME_WIDTH + 50,
+          y: 0,
+          width: 40,
+          height: 150,
+          type: 'ceiling_barrier',
+          passed: false
+        };
+        break;
+        
+      case 'floor_barrier':
+        obstacle = {
+          x: GAME_WIDTH + 50,
+          y: GAME_HEIGHT - 150,
+          width: 40,
+          height: 150,
+          type: 'floor_barrier',
           passed: false
         };
         break;
@@ -409,6 +593,20 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         velocityY: (Math.random() - 0.5) * 10,
         size: Math.random() * 5 + 2,
         color: Math.random() > 0.5 ? '#ff0066' : '#ffff00',
+        life: 1
+      });
+    }
+  };
+
+  const createRocketParticles = (gameState: GameState, x: number, y: number) => {
+    for (let i = 0; i < 3; i++) {
+      gameState.particles.push({
+        x: x - 10 + Math.random() * 20,
+        y: y + 5,
+        velocityX: (Math.random() - 0.5) * 2,
+        velocityY: Math.random() * 2 + 1,
+        size: Math.random() * 4 + 2,
+        color: Math.random() > 0.5 ? '#00aaff' : '#ffffff',
         life: 1
       });
     }
@@ -458,15 +656,19 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         height: PLAYER_SIZE,
         velocityY: 0,
         onGround: true,
-        rotation: 0
+        rotation: 0,
+        mode: 'normal',
+        rocketFuel: 100
       },
       obstacles: [],
       particles: [],
       camera: { x: 0 },
-      keys: { space: false, up: false },
+      keys: { space: false, up: false, w: false },
       isRunning: true,
       gameSpeed: GAME_SPEED,
-      backgroundOffset: 0
+      backgroundOffset: 0,
+      distance: 0,
+      rocketModeActive: false
     };
 
     if (gameLoopRef.current) {
@@ -478,12 +680,14 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (key === ' ' || key === 'arrowup' || key === 'w') {
+      if (key === ' ' || key === 'arrowup') {
         e.preventDefault();
-        if (key === ' ' || key === 'arrowup' || key === 'w') {
-          gameStateRef.current.keys.space = true;
-          gameStateRef.current.keys.up = true;
-        }
+        gameStateRef.current.keys.space = true;
+        gameStateRef.current.keys.up = true;
+      }
+      if (key === 'w') {
+        e.preventDefault();
+        gameStateRef.current.keys.w = true;
       }
       if (key === 'r' && gameOver) {
         startGame();
@@ -492,10 +696,14 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
 
     const handleKeyUp = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (key === ' ' || key === 'arrowup' || key === 'w') {
+      if (key === ' ' || key === 'arrowup') {
         e.preventDefault();
         gameStateRef.current.keys.space = false;
         gameStateRef.current.keys.up = false;
+      }
+      if (key === 'w') {
+        e.preventDefault();
+        gameStateRef.current.keys.w = false;
       }
     };
 
@@ -517,6 +725,22 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
         <div className="text-xl font-bold neon-text">
           Distance: <span className="text-cyan-400">{distance}m</span>
         </div>
+        {gameStateRef.current.rocketModeActive && (
+          <div className="flex items-center gap-4">
+            <div className="text-lg font-bold neon-text text-blue-400">
+              🚀 ROCKET MODE
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="text-sm text-blue-300">Fuel</div>
+              <div className="w-20 h-3 bg-gray-700 border border-blue-400 rounded">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded transition-all duration-100"
+                  style={{ width: `${gameStateRef.current.player.rocketFuel}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
       <div className="relative">
@@ -546,8 +770,10 @@ export default function GeometryDashGame({}: GeometryDashGameProps) {
                 </div>
               )}
               <div className="text-cyan-300 text-sm space-y-2">
-                <p>🎮 SPACE / ↑ / W to jump</p>
-                <p>🎯 Avoid the obstacles!</p>
+                <p>🎮 SPACE / ↑ to jump (Normal mode)</p>
+                <p>🚀 W to hover (Rocket mode - after 500m)</p>
+                <p>🎯 Avoid obstacles & barriers!</p>
+                <p>🪜 Jump on stairs after 200m</p>
                 <p>⚡ Survive as long as possible!</p>
                 {gameOver && <p>🔄 Press R to restart</p>}
               </div>
