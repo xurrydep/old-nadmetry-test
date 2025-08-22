@@ -1,7 +1,7 @@
 // Game configuration
 export const GAME_CONFIG = {
   // Your registered game address
-  GAME_ADDRESS: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x3523cd0efcec61fcb76146099fed585bfcc5bee5',
+  GAME_ADDRESS: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x3E828d6B4E0cca607af47C5F9a735E5884a32953',
   
   // Game settings
   SCORE_SUBMISSION: {
@@ -15,7 +15,7 @@ export const GAME_CONFIG = {
   // Game metadata
   METADATA: {
     name: 'Example Game',
-    url: 'https://mission7-example-game.vercel.app/',
+    url: 'https://nadmetrydash.vercel.app/',
     image: 'https://picsum.photos/536/354'
   }
 } as const;
