@@ -73,7 +73,7 @@ export async function submitPlayerScore(
   playerAddress: string,
   scoreAmount: number,
   transactionAmount: number = 1,
-  sessionToken?: string
+  sessionToken?: string | null
 ): Promise<ScoreSubmissionResponse> {
   try {
     // Get session token if not provided
