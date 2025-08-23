@@ -17,7 +17,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     // Configure appearance
     appearance: {
       theme: 'light' as const,
-      accentColor: '#676FFF',
+      accentColor: '#676FFF' as `#${string}`,
     },
     // Disable cross-app authentication to prevent CORS issues
     crossAppAuthentication: false,
