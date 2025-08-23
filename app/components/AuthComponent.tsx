@@ -19,7 +19,7 @@ function AuthNotConfigured() {
 function PrivyAuth({ onAddressChange }: { onAddressChange: (address: string) => void }) {
   const { authenticated, user, ready, logout, login } = usePrivy();
   const monadGamesId = process.env.NEXT_PUBLIC_MONAD_GAMES_ID || "cmd8euall0037le0my79qpz42";
-  const [accountAddress, setAccountAddress] = useState<string>("");
+  const [accountAddress, setAccountAddress] = useState<string>("0x3523cd0efcec61fcb76146099fed585bfcc5bee5");
   const [message, setMessage] = useState<string>("");
   const [copied, setCopied] = useState<boolean>(false);
   
