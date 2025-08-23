@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { useMemo } from "react";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''
@@ -12,21 +13,26 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  // Memoize config to prevent re-initialization
+  const privyConfig = useMemo(() => ({
+    loginMethodsAndOrder: {
+      // Don't forget to enable Monad Games ID support in:
+      // Global Wallet > Integrations > Monad Games ID (click on the slide to enable)
+      primary: monadGamesId ? [`privy:${monadGamesId}`] : ['wallet'], // Fallback to wallet if no Monad Games ID
+    },
+    // Configure appearance
+    appearance: {
+      theme: 'light' as const,
+      accentColor: '#676FFF',
+    },
+    // Disable cross-app authentication to prevent CORS issues
+    crossAppAuthentication: false,
+  }), [monadGamesId]);
+
   return (
     <PrivyProvider
       appId={privyAppId}
-      config={{
-        loginMethodsAndOrder: {
-          // Don't forget to enable Monad Games ID support in:
-          // Global Wallet > Integrations > Monad Games ID (click on the slide to enable)
-          primary: [`privy:${monadGamesId}`], // This is the Cross App ID
-        },
-        // Configure appearance
-        appearance: {
-          theme: 'light',
-          accentColor: '#676FFF',
-        },
-      }}
+      config={privyConfig}
     >
       {children}
     </PrivyProvider>
