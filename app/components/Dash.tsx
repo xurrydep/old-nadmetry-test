@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { submitPlayerScore } from '../lib/score-api';
 
 interface Player {
   x: number;
@@ -259,13 +260,15 @@ interface NadmetryDashGameProps {
   playerAddress: string;
 }
 
-export default function NadmetryDashGame({}: NadmetryDashGameProps) {
+export default function NadmetryDashGame({ playerAddress }: NadmetryDashGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
-  const [score, setScore] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [score, setScore] = useState(0);
   const [distance, setDistance] = useState(0);
+  const [isSavingScore, setIsSavingScore] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string>('');
 
   const gameStateRef = useRef({
     player: {
@@ -2019,11 +2022,40 @@ export default function NadmetryDashGame({}: NadmetryDashGameProps) {
     }
   };
 
+  const saveScore = useCallback(async () => {
+    if (!playerAddress || score === 0) {
+      setSaveMessage('Kaydedilecek skor yok!');
+      setTimeout(() => setSaveMessage(''), 3000);
+      return;
+    }
+
+    setIsSavingScore(true);
+    setSaveMessage('');
+
+    try {
+      const result = await submitPlayerScore(playerAddress, score, 1);
+      
+      if (result.success) {
+        setSaveMessage(`✅ Skor kaydedildi! TX: ${result.transactionHash?.slice(0, 8)}...`);
+        console.log(`Transaction confirmed: https://testnet.monadscan.com/tx/${result.transactionHash}`);
+      } else {
+        setSaveMessage(`❌ Hata: ${result.error || 'Bilinmeyen hata'}`);
+      }
+    } catch (error) {
+      console.error('Score save error:', error);
+      setSaveMessage('❌ Skor kaydedilemedi!');
+    } finally {
+      setIsSavingScore(false);
+      setTimeout(() => setSaveMessage(''), 5000);
+    }
+  }, [playerAddress, score]);
+
   const startGame = useCallback(() => {
     setGameStarted(true);
     setGameOver(false);
     setScore(0);
     setDistance(0);
+    setSaveMessage('');
 
     gameStateRef.current = {
       player: {
@@ -2201,12 +2233,32 @@ export default function NadmetryDashGame({}: NadmetryDashGameProps) {
               <h1 className="text-4xl font-bold mb-4 neon-text text-yellow-400">
                 NADMETRY DASH
               </h1>
-              <button
-                onClick={startGame}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-4 px-8 rounded-lg mb-6 text-xl shadow-lg shadow-cyan-400/50 transition-all duration-300 transform hover:scale-105"
-              >
-                {gameOver ? 'PLAY AGAIN' : 'START GAME'}
-              </button>
+              <div className="flex flex-col items-center gap-4 mb-6">
+                <div className="flex gap-4">
+                  <button
+                    onClick={startGame}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg shadow-cyan-400/50 transition-all duration-300 transform hover:scale-105"
+                  >
+                    {gameOver ? 'PLAY AGAIN' : 'START GAME'}
+                  </button>
+                  {gameOver && score > 0 && (
+                    <button
+                      onClick={saveScore}
+                      disabled={isSavingScore || !playerAddress}
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg shadow-green-400/50 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
+                    >
+                      {isSavingScore ? 'SAVING...' : 'SAVE SCORE'}
+                    </button>
+                  )}
+                </div>
+                {saveMessage && (
+                  <div className={`text-lg font-bold neon-text ${
+                    saveMessage.includes('✅') ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {saveMessage}
+                  </div>
+                )}
+              </div>
               {gameOver && (
                 <div className="text-red-400 text-2xl font-bold mb-4 neon-text">
                   GAME OVER!
