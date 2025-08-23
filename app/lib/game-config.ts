@@ -1,7 +1,10 @@
 // Game configuration
 export const GAME_CONFIG = {
   // Your registered game address
-  GAME_ADDRESS: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x3523cd0efcec61fcb76146099fed585bfcc5bee5',
+  GAME_ADDRESS: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x3523cd0efcec61fcb76146099fed585bfcc5',
+  
+  // Monad Games ID for leaderboard integration
+  MONAD_GAMES_ID: process.env.NEXT_PUBLIC_MONAD_GAMES_ID,
   
   // Game settings
   SCORE_SUBMISSION: {
