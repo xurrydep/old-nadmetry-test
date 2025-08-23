@@ -4,9 +4,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: false, // Disable React Strict Mode to prevent WalletConnect double initialization
   env: {
     // Ensure environment variables are available at build time
-    API_SECRET: process.env.API_SECRET || 'client-WY6PpnMPXsBVHznEeTWM2P23WMmmTj2K3H9vijKiKAykp',
-    WALLET_PRIVATE_KEY: process.env.WALLET_PRIVATE_KEY || '4aacc37022413f27533999ac24b269c9a6af38350ca4c9863c87bdab53519e1f',
-    NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cmejvndcq00aojo0bokftrvxb',
+    API_SECRET: process.env.API_SECRET,
+    WALLET_PRIVATE_KEY: process.env.WALLET_PRIVATE_KEY,
+    NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
   },
   async headers() {
     return [

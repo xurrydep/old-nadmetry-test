@@ -1,8 +1,27 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Setup
+
+Before running the application, you need to set up your environment variables:
+
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Fill in the required environment variables in `.env.local`:
+   - `WALLET_PRIVATE_KEY`: Your wallet private key for server-side contract interactions
+   - `API_SECRET`: Generate using `openssl rand -hex 32`
+   - `NEXT_PUBLIC_CLIENT_API_SECRET`: Your client API secret
+   - `NEXT_PUBLIC_APP_URL`: Your application URL
+   - `NEXT_PUBLIC_PRIVY_APP_ID`: Your Privy app ID for authentication
+   - `NEXT_PUBLIC_MONAD_GAMES_ID`: Your Monad Games ID for leaderboard integration
+
+⚠️ **Security Note**: Never commit `.env.local` or any file containing real secrets to version control. These files are already ignored by `.gitignore`.
+
 ## Getting Started
 
-First, run the development server:
+After setting up your environment variables, run the development server:
 
 ```bash
 npm run dev
