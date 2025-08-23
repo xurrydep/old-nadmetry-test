@@ -2148,7 +2148,7 @@ export default function NadmetryDashGame({ playerAddress }: NadmetryDashGameProp
   }, [startGame, gameOver]);
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4 bg-black min-h-screen">
+    <div className="flex flex-col items-center gap-4 p-4 min-h-screen" style={{background: 'linear-gradient(135deg, #2d1b69 0%, #1a0d3d 50%, #0f051f 100%)'}}>
       <div className="flex items-center gap-8 text-white">
         <div className="text-2xl font-bold neon-text">
           Score: <span className="text-yellow-400">{score}</span>
@@ -2223,21 +2223,21 @@ export default function NadmetryDashGame({ playerAddress }: NadmetryDashGameProp
           ref={canvasRef}
           width={GAME_WIDTH}
           height={GAME_HEIGHT}
-          className="border-2 border-cyan-400 shadow-lg shadow-cyan-400/50"
+          className="border-2 border-purple-400 shadow-lg shadow-purple-400/50"
           style={{ background: '#000' }}
         />
         
         {!gameStarted && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-90">
+          <div className="absolute inset-0 flex items-center justify-center" style={{background: 'rgba(26, 13, 61, 0.95)'}}>
             <div className="text-center text-white">
-              <h1 className="text-4xl font-bold mb-4 neon-text text-yellow-400">
+              <h1 className="text-4xl font-bold mb-4 neon-text text-purple-300">
                 NADMETRY DASH
               </h1>
               <div className="flex flex-col items-center gap-4 mb-6">
                 <div className="flex gap-4">
                   <button
                     onClick={startGame}
-                    className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg shadow-cyan-400/50 transition-all duration-300 transform hover:scale-105"
+                    className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg shadow-purple-400/50 transition-all duration-300 transform hover:scale-105"
                   >
                     {gameOver ? 'PLAY AGAIN' : 'START GAME'}
                   </button>
@@ -2264,7 +2264,7 @@ export default function NadmetryDashGame({ playerAddress }: NadmetryDashGameProp
                   GAME OVER!
                 </div>
               )}
-              <div className="text-cyan-300 text-sm space-y-2">
+              <div className="text-purple-200 text-sm space-y-2">
                 <p>🎮 SPACE / ↑ to jump (Normal mode)</p>
                 <p>🚀 W to hover (Rocket mode - after 500m)</p>
                 <p>🦘 Multi-jump unlocks at 300 points!</p>
