@@ -7,13 +7,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''
   const monadGamesId = process.env.NEXT_PUBLIC_MONAD_GAMES_ID || ''
 
-  // During build time or when no app ID is provided, render children without Privy
-  if (!privyAppId) {
-    console.warn('NEXT_PUBLIC_PRIVY_APP_ID is not set. Privy authentication will not be available.');
-    return <>{children}</>;
-  }
-
-  // Memoize config to prevent re-initialization
+  // Memoize config to prevent re-initialization - must be called before any early returns
   const privyConfig = useMemo(() => ({
     loginMethodsAndOrder: {
       // Don't forget to enable Monad Games ID support in:
@@ -28,6 +22,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     // Disable cross-app authentication to prevent CORS issues
     crossAppAuthentication: false,
   }), [monadGamesId]);
+
+  // During build time or when no app ID is provided, render children without Privy
+  if (!privyAppId) {
+    console.warn('NEXT_PUBLIC_PRIVY_APP_ID is not set. Privy authentication will not be available.');
+    return <>{children}</>;
+  }
 
   return (
     <PrivyProvider
