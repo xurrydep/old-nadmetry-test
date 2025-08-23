@@ -21,14 +21,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           // Global Wallet > Integrations > Monad Games ID (click on the slide to enable)
           primary: [`privy:${monadGamesId}`], // This is the Cross App ID
         },
-        // Add allowed origins to fix API access issues
-        allowedOrigins: [
-          'http://localhost:3000',
-          'https://monad-games-id-requestor-app.vercel.app',
-          'https://www.molandak.net',
-          'https://molandak.net',
-          'https://privy.molandak.net'
-        ],
         // Configure appearance
         appearance: {
           theme: 'light',
