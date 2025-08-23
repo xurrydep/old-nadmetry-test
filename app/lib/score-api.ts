@@ -1,8 +1,16 @@
 // Client-side API helpers for score submission
+import { GAME_CONFIG } from './game-config';
 
 interface ScoreSubmissionResponse {
   success: boolean;
   transactionHash?: string;
+  message?: string;
+  error?: string;
+}
+
+interface MonadGamesSubmissionResponse {
+  success: boolean;
+  leaderboardId?: string;
   message?: string;
   error?: string;
 }
@@ -68,12 +76,52 @@ export async function getSessionToken(playerAddress: string): Promise<string | n
   }
 }
 
+// Submit score to Monad Games leaderboard
+export async function submitToMonadGamesLeaderboard(
+  playerAddress: string,
+  score: number
+): Promise<MonadGamesSubmissionResponse> {
+  try {
+    if (!GAME_CONFIG.MONAD_GAMES_ID) {
+      return {
+        success: false,
+        error: 'Monad Games ID not configured',
+      };
+    }
+
+    // Monad Games API endpoint (this would be the actual Monad Games API)
+    const response = await fetch('https://api.monadgames.com/leaderboard/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GAME_CONFIG.MONAD_GAMES_ID}`,
+      },
+      body: JSON.stringify({
+        gameId: GAME_CONFIG.MONAD_GAMES_ID,
+        playerAddress,
+        score,
+        timestamp: Date.now(),
+      }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error submitting to Monad Games leaderboard:', error);
+    return {
+      success: false,
+      error: 'Failed to submit to leaderboard',
+    };
+  }
+}
+
 // Submit player score and transaction data to the contract
 export async function submitPlayerScore(
   playerAddress: string,
   scoreAmount: number,
   transactionAmount: number = 1,
-  sessionToken?: string | null
+  sessionToken?: string | null,
+  submitToLeaderboard: boolean = true
 ): Promise<ScoreSubmissionResponse> {
   try {
     // Get session token if not provided
@@ -87,6 +135,7 @@ export async function submitPlayerScore(
       }
     }
 
+    // Submit to blockchain contract
     const response = await fetch('/api/update-player-data', {
       method: 'POST',
       headers: {
@@ -101,6 +150,22 @@ export async function submitPlayerScore(
     });
 
     const data = await response.json();
+    
+    // If blockchain submission successful and leaderboard submission requested
+    if (data.success && submitToLeaderboard) {
+      try {
+        const leaderboardResult = await submitToMonadGamesLeaderboard(playerAddress, scoreAmount);
+        if (leaderboardResult.success) {
+          console.log('Score also submitted to Monad Games leaderboard');
+        } else {
+          console.warn('Failed to submit to leaderboard:', leaderboardResult.error);
+        }
+      } catch (leaderboardError) {
+        console.warn('Leaderboard submission failed:', leaderboardError);
+        // Don't fail the main submission if leaderboard fails
+      }
+    }
+    
     return data;
   } catch (error) {
     console.error('Error submitting score:', error);
