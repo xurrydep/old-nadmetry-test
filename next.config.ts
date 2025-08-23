@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     // Ensure environment variables are available at build time
     API_SECRET: process.env.API_SECRET || 'client-WY6PpnMPXsBVHznEeTWM2P23WMmmTj2K3H9vijKiKAykp',
     WALLET_PRIVATE_KEY: process.env.WALLET_PRIVATE_KEY || '4aacc37022413f27533999ac24b269c9a6af38350ca4c9863c87bdab53519e1f',
-    NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cmd8euall0037le0my79qpz42',
+    NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cmejvndcq00aojo0bokftrvxb',
   },
   async headers() {
     return [
@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' http://localhost:3000 https://localhost:3000 https://monad-games-id-requestor-app.vercel.app https://www.molandak.net https://www.monad-games-id-requestor-app.vercel.app https://molandak.net https://privy.molandak.net https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;",
+            value: "frame-ancestors 'self' 'unsafe-inline' http://localhost:3000 https://localhost:3000 https://monad-games-id-requestor-app.vercel.app https://www.molandak.net https://www.monad-games-id-requestor-app.vercel.app https://molandak.net https://privy.molandak.net https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://privy.io https://app.privy.io;",
           },
         ],
       },
