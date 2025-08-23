@@ -56,6 +56,7 @@ export function validateOrigin(request: NextRequest): boolean {
   const allowedOrigins = [
     'http://localhost:3000',
     'https://localhost:3000',
+    'https://nadmetrydash.vercel.app',
     process.env.NEXT_PUBLIC_APP_URL
   ].filter(Boolean);
 
