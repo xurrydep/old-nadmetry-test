@@ -4,7 +4,7 @@ export const GAME_CONFIG = {
   GAME_ADDRESS: '0x3523cd0efcec61fcb76146099fed585bfcc5bee5',
   
   // Monad Games ID for leaderboard integration
-  MONAD_GAMES_ID: process.env.NEXT_PUBLIC_MONAD_GAMES_ID,
+  MONAD_GAMES_ID: 'cmd8euall0037le0my79qpz42',
   
   // Game settings
   SCORE_SUBMISSION: {
