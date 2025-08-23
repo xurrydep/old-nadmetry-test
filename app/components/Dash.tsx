@@ -722,7 +722,7 @@ export default function NadmetryDashGame({}: NadmetryDashGameProps) {
     if (gameState.isRunning) {
       gameLoopRef.current = requestAnimationFrame(gameLoop);
     }
-  }, []);
+  }, [score]);
 
   // Tema güncelleme fonksiyonu
   const updateTheme = (gameState: GameState, currentScore: number) => {
