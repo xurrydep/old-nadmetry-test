@@ -10,8 +10,36 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-8">
       <AuthComponent onAddressChange={setPlayerAddress} />
-      <NadmetryDashGame playerAddress={playerAddress} />
-      {playerAddress && <ScoreDebugger playerAddress={playerAddress} />}
+      {playerAddress ? (
+        <>
+          <NadmetryDashGame playerAddress={playerAddress} />
+          <ScoreDebugger playerAddress={playerAddress} />
+        </>
+      ) : (
+        <div className="text-center text-white">
+          <h1 className="text-4xl font-bold mb-4 neon-text text-yellow-400">
+            NADMETRY DASH
+          </h1>
+          <p className="text-cyan-300 text-lg mb-8">
+            Monad Games ID ile giriş yapın ve oyuna başlayın!
+          </p>
+          <div className="text-cyan-300 text-sm space-y-2">
+            <p>🎮 SPACE / ↑ to jump (Normal mode)</p>
+            <p>🚀 W to hover (Rocket mode - after 500m)</p>
+            <p>🦘 Multi-jump unlocks at 300 points!</p>
+            <p>⚡ D for dash ability (unlocks at 900 points)</p>
+            <p>🛡️ Shield protection at 1300 points</p>
+            <p>🎯 Avoid obstacles & barriers!</p>
+            <p>⚡ Survive as long as possible!</p>
+          </div>
+        </div>
+      )}
+      
+      <style jsx>{`
+        .neon-text {
+          text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor;
+        }
+      `}</style>
     </div>
   );
 }
