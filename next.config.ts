@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  reactStrictMode: false, // Disable React Strict Mode to prevent WalletConnect double initialization
   env: {
     // Ensure environment variables are available at build time
     API_SECRET: process.env.API_SECRET || '',
