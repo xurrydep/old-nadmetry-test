@@ -2,12 +2,10 @@ import { NextRequest } from 'next/server';
 import crypto from 'crypto';
 
 // Remove the problematic client-side API secret
-function getServerApiSecret(): string {
-  const secret = process.env.API_SECRET;
-  if (!secret) {
-    throw new Error('API_SECRET environment variable is required');
-  }
-  return secret;
+const SERVER_API_SECRET = process.env.API_SECRET;
+
+if (!SERVER_API_SECRET) {
+  throw new Error('API_SECRET environment variable is required');
 }
 
 export function generateApiKey(): string {
@@ -16,7 +14,7 @@ export function generateApiKey(): string {
 
 // Generate a session-based token that includes player address and timestamp
 export function generateSessionToken(playerAddress: string, timestamp: number): string {
-  const data = `${playerAddress}-${timestamp}-${getServerApiSecret()}`;
+  const data = `${playerAddress}-${timestamp}-${SERVER_API_SECRET}`;
   return crypto.createHash('sha256').update(data).digest('hex');
 }
 
@@ -45,7 +43,7 @@ export function validateApiKey(request: NextRequest): boolean {
   }
 
   // Only accept server-side API key
-  return apiKey === getServerApiSecret();
+  return apiKey === SERVER_API_SECRET;
 }
 
 export function validateOrigin(request: NextRequest): boolean {
@@ -56,7 +54,6 @@ export function validateOrigin(request: NextRequest): boolean {
   const allowedOrigins = [
     'http://localhost:3000',
     'https://localhost:3000',
-    'https://nadmetry-dash.vercel.app',
     process.env.NEXT_PUBLIC_APP_URL
   ].filter(Boolean);
 
