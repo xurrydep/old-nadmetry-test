@@ -1007,18 +1007,18 @@ export default function NadmetryDashGame({ playerAddress }: NadmetryDashGameProp
     
     if (player.mode === 'normal') {
       // Normal mode - 3D efektli sarı kare
-      ctx.shadowColor = '#ffff00';
+      ctx.shadowColor = '#946DF5';
       ctx.shadowBlur = 15;
       
       // 3D kenar efekti
       const depth = 4;
-      ctx.fillStyle = '#cccc00'; // Koyu sarı kenar
+      ctx.fillStyle = '#946DF5'; // Koyu sarı kenar
       ctx.fillRect(-drawWidth/2 + depth, -drawHeight/2 + depth, drawWidth, drawHeight);
       
       // Ana renk
       const gradient = ctx.createLinearGradient(-drawWidth/2, -drawHeight/2, drawWidth/2, drawHeight/2);
-      gradient.addColorStop(0, '#ffff66');
-      gradient.addColorStop(1, '#cccc00');
+      gradient.addColorStop(0, '#946DF5');
+      gradient.addColorStop(1, '#946DF5');
       ctx.fillStyle = gradient;
       ctx.fillRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
       
