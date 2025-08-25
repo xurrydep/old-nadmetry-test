@@ -17,7 +17,7 @@ export default function Home() {
         </>
       ) : (
         <div className="text-center text-white">
-          <h1 className="text-4xl font-bold mb-4 neon-text text-yellow-400">
+          <h1 className="text-4xl font-bold mb-4 neon-text text-purple-500">
             NADMETRY DASH
           </h1>
           <p className="text-cyan-300 text-lg mb-8">

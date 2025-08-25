@@ -104,10 +104,10 @@ const GRAVITY = 0.8;
 const GAME_SPEED = 8;
 const OBSTACLE_SPAWN_RATE = 0.015;
 
-// Tema tanımları
+// Theme tanımları
 const THEMES: { [key: string]: Theme } = {
   classic: {
-    name: 'Klasik Neon',
+    name: 'Classic Neonad',
     backgroundColors: ['#0a0a0a', '#1a1a2e', '#16213e'],
     gridColor: 'rgba(0, 255, 255, 0.1)',
     waveColor: '#00ffff',
@@ -2199,7 +2199,7 @@ export default function NadmetryDashGame({ playerAddress }: NadmetryDashGameProp
         )}
         {gameStateRef.current.maxMultiJumps > 1 && (
           <div className="text-md font-bold neon-text">
-            <span className="text-yellow-400">🦘 Multi Jump: {gameStateRef.current.maxMultiJumps}x</span>
+            <span className="text-purple-400">🦘 Multi Jump: {gameStateRef.current.maxMultiJumps}x</span>
           </div>
         )}
         {gameStateRef.current.dashAbilityActive && (
