@@ -119,11 +119,15 @@ export async function POST(request: NextRequest) {
     });
 
     // Call the updatePlayerData function
-    const txHash = await wallet.writeContract({
-      address: CONTRACT_ADDRESS as '0x${string}',
-      abi,
+    const hash = await walletClient.writeContract({
+      address: CONTRACT_ADDRESS,
+      abi: CONTRACT_ABI,
       functionName: 'updatePlayerData',
-      args: [player as `0x${string}`, score, txs],
+      args: [
+        playerAddress as `0x${string}`,
+        BigInt(scoreAmount),
+        BigInt(transactionAmount)
+      ]
     });
 
     markRequestComplete(requestId);
