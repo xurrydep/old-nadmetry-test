@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     
     // Additional validation: reasonable score ranges
     const MIN_SCORE_PER_REQUEST = 1;
-    const MAX_SCORE_PER_TRANSACTION = 100; // Max 100 points per transaction
+    const MAX_SCORE_PER_TRANSACTION = 10000; // Max 10000 points per transaction
 
     if (scoreAmount > MAX_SCORE_PER_REQUEST || transactionAmount > MAX_TRANSACTIONS_PER_REQUEST) {
       return createAuthenticatedResponse(
