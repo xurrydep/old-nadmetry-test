@@ -349,9 +349,8 @@ function LeaderboardSidebar({ playerAddress, currentScore }: LeaderboardSidebarP
                   <span className="text-green-400 font-bold">{formatScore(parseInt(playerData.totalScore))}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-300">Rank:</span>
-                  <span className="text-purple-400 font-bold">#{playerData.rank}</span>
-                </div>
+                  
+                  </div>
               </>
             )}
           </div>
