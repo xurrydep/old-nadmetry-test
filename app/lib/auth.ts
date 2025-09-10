@@ -57,6 +57,7 @@ export function validateOrigin(request: NextRequest): boolean {
     'http://localhost:3000',
     'https://localhost:3000',
     'https://nadmetrydash.vercel.app',
+    'https://old-nadmetry-test.vercel.app',
     process.env.NEXT_PUBLIC_APP_URL,
     'https://old-nadmetry-test.vercel.app' // Add this for your new deployment
   ].filter(Boolean);

@@ -18,7 +18,7 @@ export const GAME_CONFIG = {
   // Game metadata
   METADATA: {
     name: 'Example Game',
-      url: 'https://nadmetrydash.vercel.app/',
+      url: 'https://old-nadmetry-test.vercel.app/',
     image: 'https://picsum.photos/536/354'
   }
 } as const;
