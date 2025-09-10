@@ -49,8 +49,11 @@ interface PlayerDataPerGameResponse {
 export async function getSessionToken(playerAddress: string): Promise<string | null> {
   try {
     // In a real implementation, you would sign a message with the user's wallet here
-    const message = `Authenticate for score submission: ${playerAddress}`;
-    const signedMessage = "dummy_signature"; // This should be replaced with actual wallet signing
+    const timestamp = Date.now();
+    const message = `Authenticate for score submission: ${playerAddress}:${timestamp}`;
+    // Note: In a real implementation, you would use the actual wallet signing method
+    // For now, we'll use a placeholder that will work with the current dummy verification
+    const signedMessage = `dummy_signature_${timestamp}`; // This should be replaced with actual wallet signing
     
     const response = await fetch('/api/get-session-token', {
       method: 'POST',
@@ -69,6 +72,7 @@ export async function getSessionToken(playerAddress: string): Promise<string | n
       return data.sessionToken;
     }
     
+    console.error('Failed to get session token:', data.error);
     return null;
   } catch (error) {
     console.error('Error getting session token:', error);
